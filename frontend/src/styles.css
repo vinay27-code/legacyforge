@@ -1,0 +1,34 @@
+/* LegacyForge global styles. */
+:root {
+  --lf-bg: #0a0e1a;
+  --lf-bg-elev: #121830;
+  --lf-text: #f0f4ff;
+  --lf-muted: #9caddc;
+  --lf-accent: #ff8c42;
+  --lf-accent-2: #63b3ed;
+  --lf-success: #4cd97b;
+  --lf-border: #2a3559;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  background: var(--lf-bg);
+  color: var(--lf-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--lf-accent-2); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+code {
+  font-family: "SF Mono", Menlo, Monaco, "Courier New", monospace;
+  background: var(--lf-bg-elev);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}

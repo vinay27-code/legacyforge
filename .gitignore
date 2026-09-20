@@ -1,0 +1,47 @@
+# Env
+.env
+.env.local
+.env.*.local
+*.pem
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+
+# Java / Maven
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+backend/HELP.md
+*.log
+
+# Node / Angular
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/coverage/
+frontend/npm-debug.log
+frontend/yarn-error.log
+
+# Docker
+docker-compose.override.yml
+
+# Data / uploads
+backend/uploads/
+backend/tmp/
+
+# Test outputs
+**/build/
+**/out/
+
+# Local scratch
+scratch/
