@@ -1,4 +1,6 @@
 /* LegacyForge global styles. */
+@import "@angular/material/prebuilt-themes/azure-blue.css";
+
 :root {
   --lf-bg: #0a0e1a;
   --lf-bg-elev: #121830;
@@ -27,7 +29,7 @@ a:hover { text-decoration: underline; }
 
 code {
   font-family: "SF Mono", Menlo, Monaco, "Courier New", monospace;
-  background: var(--lf-bg-elev);
+  background: rgba(255, 255, 255, 0.05);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 0.9em;

@@ -5,7 +5,7 @@ spring:
     active: ${SPRING_PROFILES_ACTIVE:local}
 
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/legacyforge}
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/legacyforge}
     username: ${DB_USERNAME:legacyforge}
     password: ${DB_PASSWORD:legacyforge_dev}
     driver-class-name: org.postgresql.Driver
@@ -26,12 +26,6 @@ spring:
     enabled: true
     baseline-on-migrate: true
     locations: classpath:db/migration
-
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      timeout: 3000ms
 
 server:
   port: ${SERVER_PORT:8080}
@@ -55,12 +49,33 @@ app:
   cors:
     allowed-origins: ${FRONTEND_ORIGIN:http://localhost:4200}
   jwt:
-    secret: ${JWT_SECRET:local-dev-secret-do-not-use-in-prod-12345678901234567890}
+    secret: ${JWT_SECRET:local-dev-secret-do-not-use-in-prod-please-thanks-1234567890}
     access-ttl-minutes: ${JWT_ACCESS_TTL_MINUTES:15}
     refresh-ttl-days: ${JWT_REFRESH_TTL_DAYS:7}
+  cookie:
+    secure: ${COOKIE_SECURE:false}
+    samesite: ${COOKIE_SAMESITE:Lax}
+  admin:
+    email: ${ADMIN_EMAIL:admin@legacyforge.dev}
+    password: ${ADMIN_PASSWORD:admin12345}
 
 logging:
   level:
     root: INFO
     com.legacyforge: DEBUG
     org.hibernate.SQL: WARN
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+app:
+  cookie:
+    secure: true
+    samesite: None
+  admin:
+    # Change these via ADMIN_EMAIL / ADMIN_PASSWORD env vars in production.
+    email: admin@legacyforge.dev
+    password: admin12345

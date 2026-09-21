@@ -14,4 +14,12 @@ app:
   cors:
     allowed-origins: http://localhost:4200
   jwt:
-    secret: test-secret-12345678901234567890123456789012
+    secret: test-secret-that-is-at-least-32-characters-long-1234567890
+    access-ttl-minutes: 15
+    refresh-ttl-days: 7
+  cookie:
+    secure: false
+    samesite: Lax
+  admin:
+    email: test-admin@legacyforge.dev
+    password: test12345

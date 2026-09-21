@@ -8,11 +8,8 @@ import org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoCo
 /**
  * LegacyForge backend entrypoint.
  *
- * Agentic AI platform that migrates legacy Java monoliths to Spring Boot 3
- * + Angular, with human in the loop review.
- *
  * NOTE: Redis autoconfiguration is disabled until Week 5, when we wire it in
- * as a job queue. Local Redis via docker-compose is optional and unused.
+ * as a job queue.
  */
 @SpringBootApplication(exclude = {
     RedisAutoConfiguration.class,
