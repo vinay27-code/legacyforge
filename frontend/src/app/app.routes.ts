@@ -22,7 +22,22 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
       },
-      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+      {
+        path: 'repos',
+        loadComponent: () =>
+          import('./features/repos/repo-list.component').then((m) => m.RepoListComponent),
+      },
+      {
+        path: 'repos/new',
+        loadComponent: () =>
+          import('./features/repos/repo-wizard.component').then((m) => m.RepoWizardComponent),
+      },
+      {
+        path: 'repos/:id',
+        loadComponent: () =>
+          import('./features/repos/repo-detail.component').then((m) => m.RepoDetailComponent),
+      },
+      { path: '', pathMatch: 'full', redirectTo: 'repos' },
     ],
   },
   { path: '**', redirectTo: '' },

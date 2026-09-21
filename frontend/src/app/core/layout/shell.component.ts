@@ -36,9 +36,13 @@ import { AuthService } from '../auth/auth.service';
             <mat-icon matListItemIcon>dashboard</mat-icon>
             <span matListItemTitle>Dashboard</span>
           </a>
-          <a mat-list-item routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">
-            <mat-icon matListItemIcon>bolt</mat-icon>
-            <span matListItemTitle>Migrations (soon)</span>
+          <a mat-list-item routerLink="/repos" routerLinkActive="active">
+            <mat-icon matListItemIcon>source</mat-icon>
+            <span matListItemTitle>Migrations</span>
+          </a>
+          <a mat-list-item routerLink="/repos/new" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">
+            <mat-icon matListItemIcon>add_circle</mat-icon>
+            <span matListItemTitle>New migration</span>
           </a>
         </mat-nav-list>
       </mat-sidenav>
