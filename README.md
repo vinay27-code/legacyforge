@@ -10,11 +10,11 @@ Everything runs in prod on Google Cloud Run, Supabase, Vercel, and OpenAI. Live 
 
 ## Screenshots
 
-*[Insert Dashboard screenshot: 6 stat tiles + $ cost figure + activity feed]*
+<img width="1512" height="949" alt="Image" src="https://github.com/user-attachments/assets/5c60b5c6-0705-4f91-8cc0-2ffdb782131d" />
 
-*[Insert Migration agents tab: file rows with status/validation/deps/risk badges]*
+<img width="1512" height="949" alt="Image" src="https://github.com/user-attachments/assets/505958f4-4041-42b6-80ec-4ddd20d85a4f" />
 
-*[Insert Diff modal: legacy JSP left, generated Angular component right, with Uses/Used by section on top]*
+<img width="1512" height="949" alt="Image" src="https://github.com/user-attachments/assets/00c726ba-2526-4c66-9fe9-08d516e090b0" />
 
 ---
 
