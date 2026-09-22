@@ -10,6 +10,7 @@ import java.util.UUID;
 public class MigrationArtifact {
 
     public enum Status { PENDING, RUNNING, SUCCESS, FAILED }
+    public enum ValidationStatus { VALID, INVALID, SKIPPED }
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -40,6 +41,16 @@ public class MigrationArtifact {
     @Column(nullable = false, length = 16)
     private Status status = Status.PENDING;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "validation_status", nullable = false, length = 16)
+    private ValidationStatus validationStatus = ValidationStatus.SKIPPED;
+
+    @Column(name = "validation_errors", columnDefinition = "TEXT")
+    private String validationErrors;
+
+    @Column(name = "retry_count", nullable = false)
+    private Integer retryCount = 0;
+
     @Column(name = "original_code", columnDefinition = "TEXT")
     private String originalCode;
 
@@ -64,7 +75,6 @@ public class MigrationArtifact {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
-    // getters + setters (all fields)
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
     public UUID getPlanId() { return planId; }
@@ -83,6 +93,12 @@ public class MigrationArtifact {
     public void setRisk(String risk) { this.risk = risk; }
     public Status getStatus() { return status; }
     public void setStatus(Status status) { this.status = status; }
+    public ValidationStatus getValidationStatus() { return validationStatus; }
+    public void setValidationStatus(ValidationStatus validationStatus) { this.validationStatus = validationStatus; }
+    public String getValidationErrors() { return validationErrors; }
+    public void setValidationErrors(String validationErrors) { this.validationErrors = validationErrors; }
+    public Integer getRetryCount() { return retryCount; }
+    public void setRetryCount(Integer retryCount) { this.retryCount = retryCount; }
     public String getOriginalCode() { return originalCode; }
     public void setOriginalCode(String originalCode) { this.originalCode = originalCode; }
     public String getGeneratedCode() { return generatedCode; }

@@ -24,7 +24,6 @@ public class MigrationAgentController {
         this.repos = repos;
     }
 
-    /** List all artifacts for a repo (empty until a run happens). */
     @GetMapping
     public ResponseEntity<AgentDtos.RunSummary> list(@PathVariable UUID repoId) {
         Repo repo = repos.findById(repoId).orElse(null);
@@ -32,7 +31,6 @@ public class MigrationAgentController {
         return ResponseEntity.ok(summary(repoId, agents.list(repo)));
     }
 
-    /** Kick off a fresh migration run (parallel per-file agents). Blocks until done. */
     @PostMapping("/run")
     public ResponseEntity<AgentDtos.RunSummary> run(@PathVariable UUID repoId) {
         Repo repo = repos.findById(repoId).orElse(null);
@@ -41,7 +39,6 @@ public class MigrationAgentController {
         return ResponseEntity.ok(summary(repoId, result));
     }
 
-    /** Full generated code + original for one artifact. */
     @GetMapping("/{artifactId}")
     public ResponseEntity<AgentDtos.ArtifactDetail> detail(@PathVariable UUID repoId,
                                                             @PathVariable UUID artifactId) {
@@ -53,6 +50,7 @@ public class MigrationAgentController {
         return ResponseEntity.ok(new AgentDtos.ArtifactDetail(
                 a.getId(), a.getFilePath(), a.getTargetPath(), a.getPhaseNumber(),
                 a.getPhaseTitle(), a.getRisk(), a.getStatus().name(),
+                a.getValidationStatus().name(), a.getValidationErrors(), a.getRetryCount(),
                 a.getOriginalCode(), a.getGeneratedCode(), a.getErrorMessage(),
                 a.getPromptTokens(), a.getOutputTokens(),
                 a.getStartedAt(), a.getCompletedAt()
@@ -61,6 +59,7 @@ public class MigrationAgentController {
 
     private AgentDtos.RunSummary summary(UUID repoId, List<MigrationArtifact> all) {
         int total = all.size(), success = 0, failed = 0, pending = 0, running = 0;
+        int valid = 0, invalid = 0, skipped = 0, totalRetries = 0;
         for (MigrationArtifact a : all) {
             switch (a.getStatus()) {
                 case SUCCESS -> success++;
@@ -68,13 +67,21 @@ public class MigrationAgentController {
                 case RUNNING -> running++;
                 case PENDING -> pending++;
             }
+            switch (a.getValidationStatus()) {
+                case VALID -> valid++;
+                case INVALID -> invalid++;
+                case SKIPPED -> skipped++;
+            }
+            totalRetries += a.getRetryCount() == null ? 0 : a.getRetryCount();
         }
         List<AgentDtos.ArtifactSummary> summaries = all.stream().map(a -> new AgentDtos.ArtifactSummary(
                 a.getId(), a.getFilePath(), a.getTargetPath(), a.getPhaseNumber(),
                 a.getPhaseTitle(), a.getRisk(), a.getStatus().name(),
+                a.getValidationStatus().name(), a.getRetryCount(),
                 a.getErrorMessage(), a.getPromptTokens(), a.getOutputTokens(),
                 a.getStartedAt(), a.getCompletedAt()
         )).toList();
-        return new AgentDtos.RunSummary(repoId, total, success, failed, pending, running, summaries);
+        return new AgentDtos.RunSummary(repoId, total, success, failed, pending, running,
+                valid, invalid, skipped, totalRetries, summaries);
     }
 }

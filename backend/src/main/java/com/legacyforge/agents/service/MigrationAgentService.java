@@ -27,8 +27,12 @@ import java.util.stream.Collectors;
 
 /**
  * Orchestrates per-file migration agents. Given a repo's stored plan, spawns
- * one LLM call per file (in parallel, capped by a small pool so we don't
- * hammer the provider) and stores each generated artifact.
+ * one LLM call per file in parallel and stores each generated artifact.
+ *
+ * Week 8 addition: after generation, every artifact is validated (Java files
+ * get an AST parse via {@link ValidationService}). If invalid, the agent
+ * retries up to MAX_RETRIES times with the compile errors fed back into the
+ * prompt — a self-healing loop.
  */
 @Service
 public class MigrationAgentService {
@@ -36,31 +40,30 @@ public class MigrationAgentService {
     private static final Logger log = LoggerFactory.getLogger(MigrationAgentService.class);
 
     private static final int PARALLELISM = 6;
-    private static final int MAX_ORIGINAL_CHARS = 12000; // cap prompt size per file
+    private static final int MAX_ORIGINAL_CHARS = 12000;
+    private static final int MAX_RETRIES = 2;
 
     private final LlmProvider llm;
     private final MigrationPlanRepository plans;
     private final MigrationArtifactRepository artifacts;
     private final RepoFileRepository files;
+    private final ValidationService validator;
     private final ObjectMapper json;
 
     public MigrationAgentService(LlmProvider llm,
                                  MigrationPlanRepository plans,
                                  MigrationArtifactRepository artifacts,
                                  RepoFileRepository files,
+                                 ValidationService validator,
                                  ObjectMapper json) {
         this.llm = llm;
         this.plans = plans;
         this.artifacts = artifacts;
         this.files = files;
+        this.validator = validator;
         this.json = json;
     }
 
-    /**
-     * Delete any previous artifacts and generate a fresh set for every file
-     * the plan touches. Runs each file's LLM call in parallel across a small
-     * pool. Returns once every file is either SUCCESS or FAILED.
-     */
     @Transactional
     public List<MigrationArtifact> runAgainstPlan(Repo repo) {
         MigrationPlan plan = plans.findByRepoId(repo.getId())
@@ -80,13 +83,14 @@ public class MigrationAgentService {
         artifacts.deleteByRepoId(repo.getId());
         artifacts.flush();
 
-        // Materialise every planned file as a PENDING artifact first
         List<MigrationArtifact> pending = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
         for (JsonNode phase : root.path("phases")) {
             int phaseNumber = phase.path("phaseNumber").asInt();
             String phaseTitle = phase.path("title").asText("Phase " + phaseNumber);
             for (JsonNode file : phase.path("files")) {
                 String path = file.path("path").asText();
+                if (!seen.add(phaseNumber + "|" + path)) continue; // dedup within a phase
                 RepoFile source = byPath.get(path);
                 MigrationArtifact a = new MigrationArtifact();
                 a.setPlanId(plan.getId());
@@ -104,7 +108,6 @@ public class MigrationAgentService {
         List<MigrationArtifact> saved = artifacts.saveAll(pending);
         artifacts.flush();
 
-        // Run all files in parallel through a small executor
         ExecutorService pool = Executors.newFixedThreadPool(PARALLELISM);
         try {
             List<CompletableFuture<Void>> futures = new ArrayList<>();
@@ -133,20 +136,48 @@ public class MigrationAgentService {
             if (a.getOriginalCode() == null || a.getOriginalCode().isBlank()) {
                 throw new IllegalStateException("No source content available for " + a.getFilePath());
             }
+
             String userPrompt = buildUserPrompt(a, phase, notes, reason);
             LlmProvider.LlmResponse resp = llm.completeText(SYSTEM_PROMPT, userPrompt);
             String content = stripFences(resp.content());
             String targetPath = extractTargetPath(content);
             String generated = stripTargetHeader(content);
 
+            int totalIn = resp.promptTokens() != null ? resp.promptTokens() : 0;
+            int totalOut = resp.outputTokens() != null ? resp.outputTokens() : 0;
+
+            // Self-healing loop: validate, retry with error context on failure.
+            ValidationService.Result validation = validator.validate(targetPath, generated);
+            int retries = 0;
+            while (validation.status() == ValidationService.Result.Status.INVALID && retries < MAX_RETRIES) {
+                retries++;
+                String retryPrompt = buildRetryPrompt(a, userPrompt, generated, validation.errors());
+                log.debug("Retry {} for {} (validation errors: {})",
+                        retries, a.getFilePath(), validation.errors().size());
+                LlmProvider.LlmResponse retryResp = llm.completeText(SYSTEM_PROMPT, retryPrompt);
+                String retryContent = stripFences(retryResp.content());
+                String retryTarget = extractTargetPath(retryContent);
+                String retryGenerated = stripTargetHeader(retryContent);
+                if (retryTarget != null) targetPath = retryTarget;
+                generated = retryGenerated;
+                totalIn += retryResp.promptTokens() != null ? retryResp.promptTokens() : 0;
+                totalOut += retryResp.outputTokens() != null ? retryResp.outputTokens() : 0;
+                validation = validator.validate(targetPath, generated);
+            }
+
             a.setGeneratedCode(generated);
             a.setTargetPath(targetPath);
-            a.setPromptTokens(resp.promptTokens());
-            a.setOutputTokens(resp.outputTokens());
+            a.setPromptTokens(totalIn);
+            a.setOutputTokens(totalOut);
+            a.setRetryCount(retries);
+            a.setValidationStatus(toEntityStatus(validation.status()));
+            a.setValidationErrors(validation.errors().isEmpty() ? null
+                    : String.join("\n", validation.errors()));
             a.setStatus(MigrationArtifact.Status.SUCCESS);
             a.setCompletedAt(Instant.now());
             artifacts.saveAndFlush(a);
-            log.debug("Migrated {} → {}", a.getFilePath(), targetPath);
+            log.debug("Migrated {} → {} [{}, retries={}]",
+                    a.getFilePath(), targetPath, validation.status(), retries);
         } catch (Exception e) {
             a.setStatus(MigrationArtifact.Status.FAILED);
             a.setErrorMessage(e.getMessage());
@@ -154,6 +185,14 @@ public class MigrationAgentService {
             artifacts.saveAndFlush(a);
             log.warn("Agent failed on {}: {}", a.getFilePath(), e.getMessage());
         }
+    }
+
+    private MigrationArtifact.ValidationStatus toEntityStatus(ValidationService.Result.Status s) {
+        return switch (s) {
+            case VALID -> MigrationArtifact.ValidationStatus.VALID;
+            case INVALID -> MigrationArtifact.ValidationStatus.INVALID;
+            case SKIPPED -> MigrationArtifact.ValidationStatus.SKIPPED;
+        };
     }
 
     public List<MigrationArtifact> list(Repo repo) {
@@ -182,6 +221,21 @@ public class MigrationAgentService {
         return p.toString();
     }
 
+    private String buildRetryPrompt(MigrationArtifact a, String originalPrompt,
+                                    String previousCode, List<String> errors) {
+        StringBuilder p = new StringBuilder(originalPrompt);
+        p.append("\n\n--- PREVIOUS ATTEMPT ---\n");
+        p.append(previousCode);
+        p.append("\n--- END PREVIOUS ATTEMPT ---\n\n");
+        p.append("The previous attempt failed static validation with these errors:\n");
+        for (String err : errors) {
+            p.append("- ").append(err).append('\n');
+        }
+        p.append("\nProduce a CORRECTED version that parses cleanly. Same output format rules: ")
+                .append("first line is `// TARGET: <path>`, then valid source code, no fences.");
+        return p.toString();
+    }
+
     private static final String SYSTEM_PROMPT = """
             You are a senior Java migration engineer. Given a single legacy source
             file and a target modernization approach, produce the complete
@@ -203,6 +257,8 @@ public class MigrationAgentService {
             9. Config XML: convert to @Configuration classes or application.yml. If the target is
                application.yml, wrap the yml in the file with a preceding comment.
             10. Never emit TODOs, placeholders, or "// implement this". Write real code.
+            11. Every Java file must be syntactically valid: balanced braces, terminated strings,
+                real Java keywords only. The output will be run through a Java parser.
             """;
 
     // ---- helpers -------------------------------------------------------

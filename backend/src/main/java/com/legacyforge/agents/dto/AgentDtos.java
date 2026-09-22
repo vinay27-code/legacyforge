@@ -14,6 +14,8 @@ public class AgentDtos {
             String phaseTitle,
             String risk,
             String status,
+            String validationStatus,   // VALID | INVALID | SKIPPED
+            Integer retryCount,
             String errorMessage,
             Integer promptTokens,
             Integer outputTokens,
@@ -29,6 +31,9 @@ public class AgentDtos {
             String phaseTitle,
             String risk,
             String status,
+            String validationStatus,
+            String validationErrors,
+            Integer retryCount,
             String originalCode,
             String generatedCode,
             String errorMessage,
@@ -45,6 +50,10 @@ public class AgentDtos {
             int failed,
             int pending,
             int running,
+            int valid,
+            int invalid,
+            int skipped,
+            int totalRetries,
             List<ArtifactSummary> artifacts
     ) {}
 }

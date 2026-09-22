@@ -29,12 +29,28 @@ import { ArtifactDetail, ArtifactSummary, RunSummary } from './agents.models';
           <div class="dlg-meta">
             Phase {{ data.phaseNumber }} · {{ data.phaseTitle }}
             @if (data.promptTokens) { · {{ data.promptTokens }} in / {{ data.outputTokens }} out tokens }
+            @if (data.retryCount > 0) {
+              · <span class="retry-note">{{ data.retryCount }} self-healing {{ data.retryCount === 1 ? 'retry' : 'retries' }}</span>
+            }
+            · <span class="val-badge" [class]="'v-' + data.validationStatus.toLowerCase()">
+                {{ data.validationStatus }}
+              </span>
           </div>
         </div>
         <button mat-icon-button (click)="close()">
           <mat-icon>close</mat-icon>
         </button>
       </div>
+
+      @if (data.validationErrors) {
+        <div class="val-errors">
+          <div class="val-errors-head">
+            <mat-icon>error_outline</mat-icon>
+            Validation errors (still failing after {{ data.retryCount }} retries)
+          </div>
+          <pre>{{ data.validationErrors }}</pre>
+        </div>
+      }
 
       <div class="split">
         <div class="pane">
@@ -62,6 +78,29 @@ import { ArtifactDetail, ArtifactSummary, RunSummary } from './agents.models';
     .path-from { color: var(--lf-muted); }
     .path-to { color: var(--lf-text); font-weight: 500; }
     .dlg-meta { color: var(--lf-muted); font-size: 0.8rem; margin-top: 4px; }
+    .retry-note { color: #f1c40f; }
+
+    .val-badge { padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 600; }
+    .v-valid   { background: rgba(46,204,113,0.18); color: #2ecc71; }
+    .v-invalid { background: rgba(231,76,60,0.20); color: #ff6b5c; }
+    .v-skipped { background: rgba(150,150,150,0.15); color: #b0b0b0; }
+
+    .val-errors {
+      margin: 8px 12px; padding: 12px 14px;
+      background: rgba(231,76,60,0.08);
+      border: 1px solid rgba(231,76,60,0.4);
+      border-radius: 8px;
+    }
+    .val-errors-head {
+      display: flex; align-items: center; gap: 6px;
+      color: #ff8080; font-weight: 500; margin-bottom: 6px; font-size: 0.9rem;
+    }
+    .val-errors pre {
+      margin: 0; padding: 0;
+      color: #ffb0b0; font-family: 'SF Mono', monospace;
+      font-size: 0.8rem; white-space: pre-wrap;
+    }
+
     .split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; height: 70vh; }
     .pane { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--lf-border); border-radius: 8px; }
     .pane-head {
@@ -112,13 +151,14 @@ export class ArtifactDiffDialogComponent {
             <h3>No generated code yet</h3>
             <p>
               Spawn one LLM agent per file in the migration plan, in parallel.
-              Each agent takes a legacy file and its plan entry and produces the
-              modernized Spring Boot 3 / Angular 18 equivalent.
+              Each agent takes a legacy file, produces the modernized equivalent,
+              validates it through JavaParser, and self-heals up to 2 retries if
+              the code doesn't parse.
             </p>
             <button mat-flat-button color="primary" (click)="run()" [disabled]="running()">
               @if (running()) {
                 <mat-spinner diameter="20"></mat-spinner>
-                Running agents... (30-90s)
+                Running agents... (30-120s)
               } @else {
                 <mat-icon>bolt</mat-icon>
                 Run migration agents
@@ -132,12 +172,22 @@ export class ArtifactDiffDialogComponent {
           <div class="meta">
             <mat-chip-set>
               <mat-chip><mat-icon>description</mat-icon> {{ summary()!.total }} files</mat-chip>
-              <mat-chip class="s-success"><mat-icon>check_circle</mat-icon> {{ summary()!.success }} success</mat-chip>
+              <mat-chip class="s-success"><mat-icon>check_circle</mat-icon> {{ summary()!.success }} generated</mat-chip>
               @if (summary()!.failed > 0) {
                 <mat-chip class="s-failed"><mat-icon>error</mat-icon> {{ summary()!.failed }} failed</mat-chip>
               }
               @if (running() || summary()!.running + summary()!.pending > 0) {
                 <mat-chip class="s-running"><mat-icon>autorenew</mat-icon> {{ summary()!.running + summary()!.pending }} in flight</mat-chip>
+              }
+              <mat-chip class="v-valid"><mat-icon>verified</mat-icon> {{ summary()!.valid }} valid</mat-chip>
+              @if (summary()!.invalid > 0) {
+                <mat-chip class="v-invalid"><mat-icon>report</mat-icon> {{ summary()!.invalid }} invalid</mat-chip>
+              }
+              @if (summary()!.totalRetries > 0) {
+                <mat-chip class="s-retry"
+                          matTooltip="Files that failed initial validation and were regenerated with error context">
+                  <mat-icon>healing</mat-icon> {{ summary()!.totalRetries }} self-healing retries
+                </mat-chip>
               }
             </mat-chip-set>
           </div>
@@ -145,7 +195,9 @@ export class ArtifactDiffDialogComponent {
             <label>Filter:
               <select [(ngModel)]="filter" (change)="applyFilter()">
                 <option value="all">All</option>
-                <option value="success">Success</option>
+                <option value="valid">Valid</option>
+                <option value="invalid">Invalid</option>
+                <option value="retried">Retried (self-healed)</option>
                 <option value="failed">Failed</option>
                 <option value="high">HIGH risk only</option>
               </select>
@@ -195,6 +247,17 @@ export class ArtifactDiffDialogComponent {
                         <div class="err">{{ a.errorMessage }}</div>
                       }
                     </div>
+                    @if (a.retryCount > 0) {
+                      <span class="retry-chip"
+                            [matTooltip]="a.retryCount + ' self-healing retries'">
+                        <mat-icon>healing</mat-icon> {{ a.retryCount }}
+                      </span>
+                    }
+                    @if (a.validationStatus !== 'SKIPPED') {
+                      <span class="val-badge" [class]="'v-' + a.validationStatus.toLowerCase()">
+                        {{ a.validationStatus }}
+                      </span>
+                    }
                     <span class="risk-badge" [class]="'risk-' + a.risk.toLowerCase()">{{ a.risk }}</span>
                   </div>
                 }
@@ -214,7 +277,7 @@ export class ArtifactDiffDialogComponent {
     .empty p { color: var(--lf-muted); margin: 0 0 20px; }
     .error { color: #ff8080; margin: 12px 0 0; }
 
-    .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
     .controls { display: flex; align-items: center; gap: 12px; color: var(--lf-muted); font-size: 0.9rem; }
     .controls select {
       background: var(--lf-bg-elev); color: var(--lf-text);
@@ -224,6 +287,9 @@ export class ArtifactDiffDialogComponent {
     .s-success mat-icon { color: #2ecc71; }
     .s-failed mat-icon { color: #ff6b5c; }
     .s-running mat-icon { color: #6cb0ff; animation: spin 1.5s linear infinite; }
+    .s-retry mat-icon { color: #f1c40f; }
+    .v-valid mat-icon { color: #2ecc71; }
+    .v-invalid mat-icon { color: #ff6b5c; }
 
     .phase-card { background: var(--lf-bg-elev); border: 1px solid var(--lf-border); margin-bottom: 12px; }
     .phase-card mat-card-title {
@@ -259,6 +325,18 @@ export class ArtifactDiffDialogComponent {
     .paths .to { color: var(--lf-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .paths .arrow { font-size: 14px; height: 14px; width: 14px; color: var(--lf-muted); }
     .err { font-size: 0.78rem; color: #ff8080; margin-top: 4px; }
+
+    .retry-chip {
+      display: inline-flex; align-items: center; gap: 2px;
+      padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 600;
+      background: rgba(241,196,15,0.18); color: #f1c40f;
+    }
+    .retry-chip mat-icon { font-size: 12px; height: 12px; width: 12px; }
+
+    .val-badge { padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 600; }
+    .v-valid   { background: rgba(46,204,113,0.18); color: #2ecc71; }
+    .v-invalid { background: rgba(231,76,60,0.20); color: #ff6b5c; }
+    .v-skipped { background: rgba(150,150,150,0.15); color: #b0b0b0; }
 
     .risk-badge { padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 600; }
     .risk-low    { background: rgba(46,204,113,0.18); color: #2ecc71; }
@@ -314,7 +392,9 @@ export class AgentsTabComponent implements OnChanges {
     if (!s) return [];
     const filtered = s.artifacts.filter(a => {
       switch (this.filter) {
-        case 'success': return a.status === 'SUCCESS';
+        case 'valid':   return a.validationStatus === 'VALID';
+        case 'invalid': return a.validationStatus === 'INVALID';
+        case 'retried': return a.retryCount > 0;
         case 'failed':  return a.status === 'FAILED';
         case 'high':    return a.risk === 'HIGH';
         default:        return true;
