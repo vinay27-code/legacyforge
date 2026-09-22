@@ -1,28 +1,33 @@
 package com.legacyforge;
 
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.context.annotation.Bean;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * Spins up a pgvector-enabled Postgres container for every @SpringBootTest that
- * imports this config. Spring Boot's @ServiceConnection wires the JDBC URL
- * automatically, so application-test.yml doesn't have to know about it.
+ * Base for integration tests that need Postgres + pgvector.
+ * Starts a single shared container per JVM (static init) and injects
+ * its JDBC URL into Spring via @DynamicPropertySource.
  */
-@TestConfiguration(proxyBeanMethods = false)
-public class TestcontainersConfig {
+public abstract class TestcontainersConfig {
 
-    @Bean
-    @ServiceConnection
-    PostgreSQLContainer<?> pgvectorContainer() {
-        return new PostgreSQLContainer<>(
-                DockerImageName.parse("pgvector/pgvector:pg16")
-                        .asCompatibleSubstituteFor("postgres")
-        )
-        .withDatabaseName("legacyforge_test")
-        .withUsername("test")
-        .withPassword("test");
+    static final PostgreSQLContainer<?> PG = new PostgreSQLContainer<>(
+            DockerImageName.parse("pgvector/pgvector:pg16")
+                    .asCompatibleSubstituteFor("postgres")
+    )
+            .withDatabaseName("legacyforge_test")
+            .withUsername("test")
+            .withPassword("test");
+
+    static {
+        PG.start();
+    }
+
+    @DynamicPropertySource
+    static void register(DynamicPropertyRegistry r) {
+        r.add("spring.datasource.url", PG::getJdbcUrl);
+        r.add("spring.datasource.username", PG::getUsername);
+        r.add("spring.datasource.password", PG::getPassword);
     }
 }

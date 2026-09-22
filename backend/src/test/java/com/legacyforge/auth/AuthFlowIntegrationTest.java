@@ -2,11 +2,10 @@ package com.legacyforge.auth;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.legacyforge.TestcontainersConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
-import com.legacyforge.TestcontainersConfig;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
@@ -19,10 +18,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
-@Import(TestcontainersConfig.class)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class AuthFlowIntegrationTest {
+class AuthFlowIntegrationTest extends TestcontainersConfig {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
@@ -43,7 +41,6 @@ class AuthFlowIntegrationTest {
         assertThat(accessToken).isNotBlank();
         assertThat(regJson.get("user").get("email").asText()).isEqualTo(email);
 
-        // whoami with the access token
         mvc.perform(get("/api/auth/whoami")
                         .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk());
