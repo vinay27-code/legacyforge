@@ -137,7 +137,15 @@ public class PlanPatchService {
         }
 
         // Persist the updated plan
-        plan.setPlanJson(json.writeValueAsString(planNode));
+        try {
+            try {
+            plan.setPlanJson(json.writeValueAsString(planNode));
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to serialize patched plan: " + e.getMessage(), e);
+        }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to serialize patched plan: " + e.getMessage(), e);
+        }
         plans.saveAndFlush(plan);
 
         return new PatchResult(broken.size(), filesAdded, phasesAdded,
