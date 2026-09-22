@@ -2,11 +2,6 @@ spring:
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
-  datasource:
-    url: jdbc:tc:postgresql:16:///legacyforge_test
-    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
-    username: test
-    password: test
   flyway:
     enabled: true
 
@@ -23,3 +18,7 @@ app:
   admin:
     email: test-admin@legacyforge.dev
     password: test12345
+  embedding:
+    base-url: http://localhost:11434/v1
+    api-key: ollama
+    model: nomic-embed-text

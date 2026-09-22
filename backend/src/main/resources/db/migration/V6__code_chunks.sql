@@ -1,5 +1,8 @@
 -- V6: Code chunks with embeddings for semantic search / RAG.
 
+CREATE EXTENSION IF NOT EXISTS vector;
+
+
 CREATE TABLE code_chunks (
     id            UUID PRIMARY KEY,
     repo_id       UUID NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
