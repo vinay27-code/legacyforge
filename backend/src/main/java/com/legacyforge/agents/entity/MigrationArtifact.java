@@ -22,11 +22,17 @@ public class MigrationArtifact {
     @Column(name = "repo_id", nullable = false)
     private UUID repoId;
 
+    @Column(name = "parent_artifact_id")
+    private UUID parentArtifactId;
+
     @Column(name = "file_path", nullable = false, length = 1024)
     private String filePath;
 
     @Column(name = "target_path", length = 1024)
     private String targetPath;
+
+    @Column(name = "declared_fqn", length = 512)
+    private String declaredFqn;
 
     @Column(name = "phase_number", nullable = false)
     private Integer phaseNumber;
@@ -81,10 +87,14 @@ public class MigrationArtifact {
     public void setPlanId(UUID planId) { this.planId = planId; }
     public UUID getRepoId() { return repoId; }
     public void setRepoId(UUID repoId) { this.repoId = repoId; }
+    public UUID getParentArtifactId() { return parentArtifactId; }
+    public void setParentArtifactId(UUID parentArtifactId) { this.parentArtifactId = parentArtifactId; }
     public String getFilePath() { return filePath; }
     public void setFilePath(String filePath) { this.filePath = filePath; }
     public String getTargetPath() { return targetPath; }
     public void setTargetPath(String targetPath) { this.targetPath = targetPath; }
+    public String getDeclaredFqn() { return declaredFqn; }
+    public void setDeclaredFqn(String declaredFqn) { this.declaredFqn = declaredFqn; }
     public Integer getPhaseNumber() { return phaseNumber; }
     public void setPhaseNumber(Integer phaseNumber) { this.phaseNumber = phaseNumber; }
     public String getPhaseTitle() { return phaseTitle; }

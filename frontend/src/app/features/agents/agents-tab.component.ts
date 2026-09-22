@@ -25,9 +25,13 @@ import { ArtifactDetail, ArtifactSummary, RunSummary } from './agents.models';
             <span class="path-from">{{ data.filePath }}</span>
             <mat-icon>arrow_forward</mat-icon>
             <span class="path-to">{{ data.targetPath || '(no target path)' }}</span>
+            @if (data.parentArtifactId) {
+              <span class="derived-tag" matTooltip="Split from a multi-target LLM response">DERIVED</span>
+            }
           </div>
           <div class="dlg-meta">
             Phase {{ data.phaseNumber }} · {{ data.phaseTitle }}
+            @if (data.declaredFqn) { · <span class="fqn">{{ data.declaredFqn }}</span> }
             @if (data.promptTokens) { · {{ data.promptTokens }} in / {{ data.outputTokens }} out tokens }
             @if (data.retryCount > 0) {
               · <span class="retry-note">{{ data.retryCount }} self-healing {{ data.retryCount === 1 ? 'retry' : 'retries' }}</span>
@@ -52,10 +56,54 @@ import { ArtifactDetail, ArtifactSummary, RunSummary } from './agents.models';
         </div>
       }
 
+      @if (data.outgoing.length > 0 || data.incoming.length > 0) {
+        <div class="deps-section">
+          @if (data.outgoing.length > 0) {
+            <div class="deps-group">
+              <div class="deps-head">
+                <mat-icon>call_made</mat-icon>
+                Uses ({{ data.outgoing.length }})
+                @if (brokenCount(data.outgoing) > 0) {
+                  <span class="broken-count">{{ brokenCount(data.outgoing) }} broken</span>
+                }
+              </div>
+              <div class="deps-list">
+                @for (e of data.outgoing; track e.toClassName + e.edgeType) {
+                  <span class="dep-chip" [class.broken]="!e.resolved"
+                        [matTooltip]="e.resolved
+                          ? ('Resolved to ' + e.toTargetPath)
+                          : 'Not found in generated code'">
+                    <mat-icon>{{ e.resolved ? 'link' : 'link_off' }}</mat-icon>
+                    <span class="dep-name">{{ shortName(e.toClassName) }}</span>
+                    <span class="dep-type">{{ e.edgeType.toLowerCase() }}</span>
+                  </span>
+                }
+              </div>
+            </div>
+          }
+          @if (data.incoming.length > 0) {
+            <div class="deps-group">
+              <div class="deps-head">
+                <mat-icon>call_received</mat-icon>
+                Used by ({{ data.incoming.length }})
+              </div>
+              <div class="deps-list">
+                @for (e of data.incoming; track e.toClassName + e.edgeType) {
+                  <span class="dep-chip">
+                    <mat-icon>arrow_back</mat-icon>
+                    <span class="dep-name">{{ shortName(e.toClassName) }}</span>
+                  </span>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
+
       <div class="split">
         <div class="pane">
           <div class="pane-head"><mat-icon>history_edu</mat-icon> Legacy</div>
-          <pre class="code"><code>{{ data.originalCode || '(source unavailable)' }}</code></pre>
+          <pre class="code"><code>{{ data.originalCode || '(source unavailable — derived artifact)' }}</code></pre>
         </div>
         <div class="pane">
           <div class="pane-head"><mat-icon>auto_awesome</mat-icon> Generated</div>
@@ -77,7 +125,12 @@ import { ArtifactDetail, ArtifactSummary, RunSummary } from './agents.models';
     .dlg-title mat-icon { color: var(--lf-accent); }
     .path-from { color: var(--lf-muted); }
     .path-to { color: var(--lf-text); font-weight: 500; }
+    .derived-tag {
+      font-size: 0.65rem; padding: 2px 6px; border-radius: 4px;
+      background: rgba(108,176,255,0.18); color: #6cb0ff; font-weight: 600;
+    }
     .dlg-meta { color: var(--lf-muted); font-size: 0.8rem; margin-top: 4px; }
+    .fqn { font-family: 'SF Mono', monospace; color: var(--lf-accent); }
     .retry-note { color: #f1c40f; }
 
     .val-badge { padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 600; }
@@ -101,7 +154,37 @@ import { ArtifactDetail, ArtifactSummary, RunSummary } from './agents.models';
       font-size: 0.8rem; white-space: pre-wrap;
     }
 
-    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; height: 70vh; }
+    .deps-section {
+      margin: 8px 12px; padding: 10px 14px;
+      background: rgba(0,0,0,0.2);
+      border: 1px solid var(--lf-border);
+      border-radius: 8px;
+      display: flex; gap: 20px; flex-wrap: wrap;
+    }
+    .deps-group { flex: 1; min-width: 300px; }
+    .deps-head {
+      display: flex; align-items: center; gap: 6px;
+      color: var(--lf-muted); font-size: 0.85rem; margin-bottom: 6px;
+    }
+    .deps-head mat-icon { font-size: 16px; height: 16px; width: 16px; }
+    .broken-count {
+      margin-left: auto; padding: 1px 8px; border-radius: 999px;
+      background: rgba(231,76,60,0.20); color: #ff6b5c;
+      font-size: 0.7rem; font-weight: 600;
+    }
+    .deps-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .dep-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 8px; border-radius: 6px;
+      background: rgba(46,204,113,0.12); color: #2ecc71;
+      font-size: 0.75rem; font-family: 'SF Mono', monospace;
+    }
+    .dep-chip.broken { background: rgba(231,76,60,0.15); color: #ff6b5c; }
+    .dep-chip mat-icon { font-size: 12px; height: 12px; width: 12px; }
+    .dep-name { font-weight: 500; }
+    .dep-type { opacity: 0.6; font-size: 0.65rem; margin-left: 2px; }
+
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; flex: 1; min-height: 400px; }
     .pane { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--lf-border); border-radius: 8px; }
     .pane-head {
       display: flex; align-items: center; gap: 6px;
@@ -124,6 +207,15 @@ export class ArtifactDiffDialogComponent {
     @Inject(MAT_DIALOG_DATA) public data: ArtifactDetail,
   ) {}
   close() { this.dialogRef.close(); }
+
+  shortName(fqn: string): string {
+    const idx = fqn.lastIndexOf('.');
+    return idx > 0 ? fqn.substring(idx + 1) : fqn;
+  }
+
+  brokenCount(edges: ArtifactDetail['outgoing']): number {
+    return edges.filter(e => !e.resolved).length;
+  }
 }
 
 @Component({
@@ -151,9 +243,9 @@ export class ArtifactDiffDialogComponent {
             <h3>No generated code yet</h3>
             <p>
               Spawn one LLM agent per file in the migration plan, in parallel.
-              Each agent takes a legacy file, produces the modernized equivalent,
-              validates it through JavaParser, and self-heals up to 2 retries if
-              the code doesn't parse.
+              Each agent generates code, self-validates via JavaParser (with up
+              to 2 retries), and the whole run rebuilds the cross-file
+              dependency graph so you can see structural coherence.
             </p>
             <button mat-flat-button color="primary" (click)="run()" [disabled]="running()">
               @if (running()) {
@@ -189,6 +281,24 @@ export class ArtifactDiffDialogComponent {
                   <mat-icon>healing</mat-icon> {{ summary()!.totalRetries }} self-healing retries
                 </mat-chip>
               }
+              @if (summary()!.derivedCount > 0) {
+                <mat-chip class="s-derived"
+                          matTooltip="Additional files split out from a multi-target LLM response">
+                  <mat-icon>call_split</mat-icon> {{ summary()!.derivedCount }} derived
+                </mat-chip>
+              }
+              @if (summary()!.totalEdges > 0) {
+                <mat-chip class="s-edges"
+                          matTooltip="Class references across the generated code">
+                  <mat-icon>hub</mat-icon> {{ summary()!.totalEdges }} deps
+                </mat-chip>
+                @if (summary()!.brokenEdges > 0) {
+                  <mat-chip class="s-broken"
+                            matTooltip="References that don't resolve to any generated class">
+                    <mat-icon>link_off</mat-icon> {{ summary()!.brokenEdges }} broken links
+                  </mat-chip>
+                }
+              }
             </mat-chip-set>
           </div>
           <div class="controls">
@@ -198,6 +308,8 @@ export class ArtifactDiffDialogComponent {
                 <option value="valid">Valid</option>
                 <option value="invalid">Invalid</option>
                 <option value="retried">Retried (self-healed)</option>
+                <option value="derived">Derived (multi-target splits)</option>
+                <option value="broken">Broken deps</option>
                 <option value="failed">Failed</option>
                 <option value="high">HIGH risk only</option>
               </select>
@@ -226,7 +338,8 @@ export class ArtifactDiffDialogComponent {
               <div class="files">
                 @for (a of phase.files; track a.id) {
                   <div class="file-row" (click)="openDetail(a)"
-                       [matTooltip]="a.status === 'FAILED' ? (a.errorMessage || 'Failed') : 'Click to view diff'">
+                       [class.derived]="a.parentArtifactId"
+                       [matTooltip]="a.status === 'FAILED' ? (a.errorMessage || 'Failed') : 'Click to view diff + deps'">
                     <mat-icon class="status-icon" [class]="'s-' + a.status.toLowerCase()">
                       @switch (a.status) {
                         @case ('SUCCESS') { check_circle }
@@ -237,6 +350,7 @@ export class ArtifactDiffDialogComponent {
                     </mat-icon>
                     <div class="file-info">
                       <div class="paths">
+                        @if (a.parentArtifactId) { <mat-icon class="derived-icon">call_split</mat-icon> }
                         <span class="from">{{ a.filePath }}</span>
                         @if (a.targetPath) {
                           <mat-icon class="arrow">arrow_forward</mat-icon>
@@ -247,6 +361,14 @@ export class ArtifactDiffDialogComponent {
                         <div class="err">{{ a.errorMessage }}</div>
                       }
                     </div>
+                    @if (a.depsOut > 0) {
+                      <span class="deps-chip"
+                            [class.has-broken]="a.depsBroken > 0"
+                            [matTooltip]="a.depsOut + ' outgoing refs, ' + a.depsBroken + ' broken. In: ' + a.depsIn">
+                        <mat-icon>hub</mat-icon>
+                        {{ a.depsOut }}@if (a.depsBroken > 0) { <span class="broken-slash">/{{ a.depsBroken }}✗</span> }
+                      </span>
+                    }
                     @if (a.retryCount > 0) {
                       <span class="retry-chip"
                             [matTooltip]="a.retryCount + ' self-healing retries'">
@@ -288,6 +410,9 @@ export class ArtifactDiffDialogComponent {
     .s-failed mat-icon { color: #ff6b5c; }
     .s-running mat-icon { color: #6cb0ff; animation: spin 1.5s linear infinite; }
     .s-retry mat-icon { color: #f1c40f; }
+    .s-derived mat-icon { color: #6cb0ff; }
+    .s-edges mat-icon { color: #b28eff; }
+    .s-broken mat-icon { color: #ff6b5c; }
     .v-valid mat-icon { color: #2ecc71; }
     .v-invalid mat-icon { color: #ff6b5c; }
 
@@ -310,11 +435,13 @@ export class ArtifactDiffDialogComponent {
       transition: background 0.1s;
     }
     .file-row:hover { background: rgba(0,0,0,0.35); }
+    .file-row.derived { border-left: 3px solid #6cb0ff; padding-left: 9px; }
     .status-icon { flex: 0 0 auto; }
     .status-icon.s-success { color: #2ecc71; }
     .status-icon.s-failed { color: #ff6b5c; }
     .status-icon.s-running { color: #6cb0ff; animation: spin 1.5s linear infinite; }
     .status-icon.s-pending { color: var(--lf-muted); }
+    .derived-icon { font-size: 14px; height: 14px; width: 14px; color: #6cb0ff; }
 
     .file-info { flex: 1; min-width: 0; }
     .paths {
@@ -326,11 +453,15 @@ export class ArtifactDiffDialogComponent {
     .paths .arrow { font-size: 14px; height: 14px; width: 14px; color: var(--lf-muted); }
     .err { font-size: 0.78rem; color: #ff8080; margin-top: 4px; }
 
-    .retry-chip {
+    .deps-chip, .retry-chip {
       display: inline-flex; align-items: center; gap: 2px;
       padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 600;
-      background: rgba(241,196,15,0.18); color: #f1c40f;
     }
+    .deps-chip { background: rgba(178,142,255,0.15); color: #b28eff; }
+    .deps-chip.has-broken { background: rgba(231,76,60,0.15); color: #ff8080; }
+    .deps-chip mat-icon { font-size: 12px; height: 12px; width: 12px; }
+    .broken-slash { color: #ff6b5c; }
+    .retry-chip { background: rgba(241,196,15,0.18); color: #f1c40f; }
     .retry-chip mat-icon { font-size: 12px; height: 12px; width: 12px; }
 
     .val-badge { padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 600; }
@@ -395,6 +526,8 @@ export class AgentsTabComponent implements OnChanges {
         case 'valid':   return a.validationStatus === 'VALID';
         case 'invalid': return a.validationStatus === 'INVALID';
         case 'retried': return a.retryCount > 0;
+        case 'derived': return a.parentArtifactId !== null;
+        case 'broken':  return a.depsBroken > 0;
         case 'failed':  return a.status === 'FAILED';
         case 'high':    return a.risk === 'HIGH';
         default:        return true;
