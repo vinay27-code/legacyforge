@@ -78,7 +78,7 @@ jobs:
             --memory 1Gi \
             --cpu 1 \
             --set-env-vars "SPRING_PROFILES_ACTIVE=prod,FRONTEND_ORIGIN=${{ secrets.FRONTEND_ORIGIN }}" \
-            --set-secrets "DB_URL=DB_URL:latest,DB_USERNAME=DB_USERNAME:latest,DB_PASSWORD=DB_PASSWORD:latest,JWT_SECRET=JWT_SECRET:latest,GROQ_API_KEY=GROQ_API_KEY:latest,EMBEDDING_API_KEY=GEMINI_API_KEY:latest"
+            --set-secrets "DB_URL=DB_URL:latest,DB_USERNAME=DB_USERNAME:latest,DB_PASSWORD=DB_PASSWORD:latest,JWT_SECRET=JWT_SECRET:latest,GROQ_API_KEY=GROQ_API_KEY:latest,EMBEDDING_API_KEY=OPENAI_API_KEY:latest"
 
   # ---------------- Frontend ----------------
   frontend-test:

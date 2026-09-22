@@ -92,6 +92,6 @@ app:
     email: admin@legacyforge.dev
     password: admin12345
   embedding:
-    base-url: https://generativelanguage.googleapis.com/v1beta/openai
+    base-url: https://api.openai.com/v1
     api-key: ${EMBEDDING_API_KEY:missing}
-    model: gemini-embedding-001
+    model: text-embedding-3-small
