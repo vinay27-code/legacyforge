@@ -14,13 +14,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Calls an OpenAI-compatible /chat/completions endpoint. Used both by the
- * planning service (JSON mode) and the migration agents (plain text output).
- *
- * Configured via env:
- *   - PLANNING_BASE_URL  (e.g. http://localhost:11434/v1  or  https://api.openai.com/v1)
- *   - PLANNING_API_KEY   (dummy for Ollama, real key for OpenAI/Gemini)
- *   - PLANNING_MODEL     (e.g. llama3.2  or  gpt-4o-mini)
+ * Calls an OpenAI-compatible /chat/completions endpoint. Week 11: adds
+ * structured timing + token logging around every call so latency and cost
+ * are observable in Cloud Run logs and roll into the Stats aggregate.
  */
 @Service
 public class LlmProvider {
@@ -52,18 +48,16 @@ public class LlmProvider {
         log.info("LlmProvider: base={} model={}", baseUrl, model);
     }
 
-    /** JSON-mode completion. Used by the planning service. */
     public LlmResponse completeJson(String systemPrompt, String userPrompt) {
-        return call(systemPrompt, userPrompt, true);
+        return call(systemPrompt, userPrompt, true, "json");
     }
 
-    /** Plain text completion. Used by the migration agents (they produce source code). */
     public LlmResponse completeText(String systemPrompt, String userPrompt) {
-        return call(systemPrompt, userPrompt, false);
+        return call(systemPrompt, userPrompt, false, "text");
     }
 
     @SuppressWarnings("unchecked")
-    private LlmResponse call(String systemPrompt, String userPrompt, boolean jsonMode) {
+    private LlmResponse call(String systemPrompt, String userPrompt, boolean jsonMode, String mode) {
         Map<String, Object> body = new HashMap<>();
         body.put("model", model);
         body.put("messages", List.of(
@@ -71,9 +65,10 @@ public class LlmProvider {
                 Map.of("role", "user", "content", userPrompt)
         ));
         body.put("temperature", 0.2);
-        if (jsonMode) {
-            body.put("response_format", Map.of("type", "json_object"));
-        }
+        if (jsonMode) body.put("response_format", Map.of("type", "json_object"));
+
+        long startNanos = System.nanoTime();
+        int promptSize = systemPrompt.length() + userPrompt.length();
 
         Map<String, Object> resp;
         try {
@@ -83,7 +78,9 @@ public class LlmProvider {
                     .retrieve()
                     .body(Map.class);
         } catch (Exception e) {
-            log.error("LLM call failed: {}", e.getMessage());
+            long ms = (System.nanoTime() - startNanos) / 1_000_000L;
+            log.error("LLM call failed mode={} model={} promptChars={} durationMs={} error={}",
+                    mode, model, promptSize, ms, e.getMessage());
             throw new RuntimeException("LLM provider unavailable: " + e.getMessage(), e);
         }
         if (resp == null || !resp.containsKey("choices")) {
@@ -102,6 +99,10 @@ public class LlmProvider {
             if (pt instanceof Number n) prompt = n.intValue();
             if (ct instanceof Number n) output = n.intValue();
         }
+
+        long ms = (System.nanoTime() - startNanos) / 1_000_000L;
+        log.info("llm_call mode={} model={} durationMs={} promptTokens={} outputTokens={} promptChars={}",
+                mode, model, ms, prompt, output, promptSize);
 
         return new LlmResponse(content, prompt, output);
     }
