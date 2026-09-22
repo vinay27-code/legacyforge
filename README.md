@@ -4,7 +4,7 @@
 
 Point it at a legacy repo. It analyzes the code, embeds every file in pgvector for semantic search, plans a phased migration with per-file risk scoring, spawns parallel LLM agents that generate the modernized equivalents, validates every generated file, builds a cross-file dependency graph, and closes plan gaps with a self-healing feedback loop.
 
-Everything runs in prod on Google Cloud Run, Supabase, Vercel, and OpenAI. Live at [legacyforge-git-main-vinay-1684.vercel.app](https://legacyforge-git-main-vinay-1684.vercel.app).
+Everything runs in prod on Google Cloud Run, Supabase, Vercel, and OpenAI. Live at [legacyforge.vercel.app](https://legacyforge.vercel.app).
 
 ---
 
