@@ -67,6 +67,10 @@ app:
   admin:
     email: ${ADMIN_EMAIL:admin@legacyforge.dev}
     password: ${ADMIN_PASSWORD:admin12345}
+  embedding:
+    base-url: ${EMBEDDING_BASE_URL:http://localhost:11434/v1}
+    api-key: ${EMBEDDING_API_KEY:ollama}
+    model: ${EMBEDDING_MODEL:nomic-embed-text}
 
 logging:
   level:
@@ -87,3 +91,7 @@ app:
   admin:
     email: admin@legacyforge.dev
     password: admin12345
+  embedding:
+    base-url: https://generativelanguage.googleapis.com/v1beta/openai
+    api-key: ${GEMINI_API_KEY:missing}
+    model: text-embedding-004

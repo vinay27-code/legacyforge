@@ -24,6 +24,7 @@ import { RepoService } from './repo.service';
 import { FileContent, FileTreeNode, RepoSummary } from './repo.models';
 import { FileTreeComponent } from './file-tree.component';
 import { AnalysisTabComponent } from '../analysis/analysis-tab.component';
+import { SearchTabComponent } from '../search/search-tab.component';
 
 hljs.registerLanguage('java', javaLang);
 hljs.registerLanguage('xml', xmlLang);
@@ -54,6 +55,7 @@ hljs.registerLanguage('python', pyLang);
     MatTabsModule,
     FileTreeComponent,
     AnalysisTabComponent,
+    SearchTabComponent,
   ],
   template: `
     @if (loading()) {
@@ -117,8 +119,14 @@ hljs.registerLanguage('python', pyLang);
           </mat-tab>
 
           <mat-tab label="Analysis">
-            <div class="analysis-pad">
+            <div class="tab-pad">
               <app-analysis-tab [repoId]="repo()!.id"></app-analysis-tab>
+            </div>
+          </mat-tab>
+
+          <mat-tab label="Semantic search">
+            <div class="tab-pad">
+              <app-search-tab [repoId]="repo()!.id"></app-search-tab>
             </div>
           </mat-tab>
         </mat-tab-group>
@@ -184,7 +192,7 @@ hljs.registerLanguage('python', pyLang);
       tab-size: 4;
     }
     .empty { padding: 60px; text-align: center; color: var(--lf-muted); }
-    .analysis-pad { padding: 16px 0; }
+    .tab-pad { padding: 16px 0; }
   `],
 })
 export class RepoDetailComponent implements OnInit {
