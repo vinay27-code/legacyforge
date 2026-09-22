@@ -58,7 +58,8 @@ public class EmbeddingProvider {
 
         Map<String, Object> body = Map.of(
                 "model", model,
-                "input", texts
+                "input", texts,
+                "dimensions", 768
         );
         Map<String, Object> resp;
         try {

@@ -94,4 +94,4 @@ app:
   embedding:
     base-url: https://generativelanguage.googleapis.com/v1beta/openai
     api-key: ${GEMINI_API_KEY:missing}
-    model: text-embedding-004
+    model: gemini-embedding-001
