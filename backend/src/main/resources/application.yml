@@ -93,5 +93,5 @@ app:
     password: admin12345
   embedding:
     base-url: https://generativelanguage.googleapis.com/v1beta/openai
-    api-key: ${GEMINI_API_KEY:missing}
+    api-key: ${EMBEDDING_API_KEY:missing}
     model: gemini-embedding-001

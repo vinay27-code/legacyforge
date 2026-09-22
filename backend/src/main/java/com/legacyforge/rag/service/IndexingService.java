@@ -75,6 +75,16 @@ public class IndexingService {
             }
             totalEmbedded += batch.size();
             log.debug("Indexed {} / {} chunks", totalEmbedded, allChunks.size());
+
+            // Throttle: Gemini free tier caps embed calls at 100 RPM.
+            if (i + BATCH_SIZE < allChunks.size()) {
+                try {
+                    Thread.sleep(700);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrupted while throttling embed calls", e);
+                }
+            }
         }
 
         log.info("Reindex complete for repo {}: {} chunks embedded", repo.getId(), totalEmbedded);
