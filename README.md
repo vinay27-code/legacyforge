@@ -22,7 +22,7 @@ Everything runs in prod on Google Cloud Run, Supabase, Vercel, and OpenAI. Live 
 
 Enterprise codebases are stuck on 15-year-old Java stacks (Struts 1.x, iBATIS, JSP, servlet containers). Migrating them by hand takes years. LegacyForge automates the analysis + planning + code generation steps so a small team can move a monolith in weeks, not quarters.
 
-More importantly, it does the parts humans are bad at anyway: figuring out **what** to migrate in what **order**, tracking cross-file references, and catching gaps where a class is referenced but never accounted for.
+More importantly, it handles the analytical toil that scales poorly as codebases grow: dependency-ordering the migration, tracking cross-file references, and catching gaps where a class is referenced but never planned for.
 
 ---
 
