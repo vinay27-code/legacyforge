@@ -100,6 +100,6 @@ app:
     api-key: ${EMBEDDING_API_KEY:missing}
     model: text-embedding-3-small
   planning:
-    base-url: https://generativelanguage.googleapis.com/v1beta/openai
+    base-url: https://api.openai.com/v1
     api-key: ${PLANNING_API_KEY:missing}
-    model: gemini-flash-latest
+    model: gpt-4o-mini
