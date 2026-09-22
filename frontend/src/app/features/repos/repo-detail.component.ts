@@ -6,6 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTabsModule } from '@angular/material/tabs';
 import hljs from 'highlight.js/lib/core';
 import javaLang from 'highlight.js/lib/languages/java';
 import xmlLang from 'highlight.js/lib/languages/xml';
@@ -22,6 +23,7 @@ import pyLang from 'highlight.js/lib/languages/python';
 import { RepoService } from './repo.service';
 import { FileContent, FileTreeNode, RepoSummary } from './repo.models';
 import { FileTreeComponent } from './file-tree.component';
+import { AnalysisTabComponent } from '../analysis/analysis-tab.component';
 
 hljs.registerLanguage('java', javaLang);
 hljs.registerLanguage('xml', xmlLang);
@@ -49,7 +51,9 @@ hljs.registerLanguage('python', pyLang);
     MatButtonModule,
     MatChipsModule,
     MatProgressSpinnerModule,
+    MatTabsModule,
     FileTreeComponent,
+    AnalysisTabComponent,
   ],
   template: `
     @if (loading()) {
@@ -73,41 +77,51 @@ hljs.registerLanguage('python', pyLang);
           }
         </header>
 
-        <div class="split">
-          <aside class="tree">
-            <div class="tree-head">
-              <mat-icon>folder_open</mat-icon>
-              <span>Files</span>
-            </div>
-            @if (tree()) {
-              <app-file-tree
-                [node]="tree()!"
-                [selectedPath]="selectedPath()"
-                (fileSelected)="openFile($event)"
-              ></app-file-tree>
-            }
-          </aside>
+        <mat-tab-group class="tabs" animationDuration="120ms">
+          <mat-tab label="Files">
+            <div class="split">
+              <aside class="tree">
+                <div class="tree-head">
+                  <mat-icon>folder_open</mat-icon>
+                  <span>Files</span>
+                </div>
+                @if (tree()) {
+                  <app-file-tree
+                    [node]="tree()!"
+                    [selectedPath]="selectedPath()"
+                    (fileSelected)="openFile($event)"
+                  ></app-file-tree>
+                }
+              </aside>
 
-          <section class="viewer">
-            @if (currentFile()) {
-              <div class="file-head">
-                <mat-icon>description</mat-icon>
-                <span class="path">{{ currentFile()!.path }}</span>
-                <span class="meta">
-                  {{ currentFile()!.language ?? 'plaintext' }}
-                  · {{ formatBytes(currentFile()!.sizeBytes) }}
-                </span>
-              </div>
-              @if (currentFile()!.binary || currentFile()!.content === null) {
-                <div class="empty">Binary or oversized file. Preview unavailable.</div>
-              } @else {
-                <pre class="code"><code [innerHTML]="highlighted()"></code></pre>
-              }
-            } @else {
-              <div class="empty">Pick a file from the tree on the left.</div>
-            }
-          </section>
-        </div>
+              <section class="viewer">
+                @if (currentFile()) {
+                  <div class="file-head">
+                    <mat-icon>description</mat-icon>
+                    <span class="path">{{ currentFile()!.path }}</span>
+                    <span class="meta">
+                      {{ currentFile()!.language ?? 'plaintext' }}
+                      · {{ formatBytes(currentFile()!.sizeBytes) }}
+                    </span>
+                  </div>
+                  @if (currentFile()!.binary || currentFile()!.content === null) {
+                    <div class="empty">Binary or oversized file. Preview unavailable.</div>
+                  } @else {
+                    <pre class="code"><code [innerHTML]="highlighted()"></code></pre>
+                  }
+                } @else {
+                  <div class="empty">Pick a file from the tree on the left.</div>
+                }
+              </section>
+            </div>
+          </mat-tab>
+
+          <mat-tab label="Analysis">
+            <div class="analysis-pad">
+              <app-analysis-tab [repoId]="repo()!.id"></app-analysis-tab>
+            </div>
+          </mat-tab>
+        </mat-tab-group>
       </div>
     } @else {
       <p>Repo not found.</p>
@@ -115,7 +129,7 @@ hljs.registerLanguage('python', pyLang);
   `,
   styles: [`
     .center { display: grid; place-items: center; padding: 80px; }
-    .page { display: flex; flex-direction: column; height: calc(100vh - 128px); color: var(--lf-text); }
+    .page { display: flex; flex-direction: column; color: var(--lf-text); }
     header { margin-bottom: 16px; }
     .title { display: flex; align-items: center; gap: 16px; margin: 8px 0; }
     .title h1 { margin: 0; letter-spacing: -0.02em; }
@@ -123,9 +137,12 @@ hljs.registerLanguage('python', pyLang);
       color: var(--lf-muted); font-size: 0.9rem;
       display: inline-flex; align-items: center; gap: 4px;
     }
+    .tabs { margin-top: 8px; }
     .split {
-      flex: 1; display: grid; grid-template-columns: 320px 1fr;
-      gap: 16px; min-height: 0;
+      display: grid; grid-template-columns: 320px 1fr;
+      gap: 16px; margin-top: 16px;
+      height: calc(100vh - 260px);
+      min-height: 500px;
     }
     .tree {
       background: var(--lf-bg-elev);
@@ -133,7 +150,6 @@ hljs.registerLanguage('python', pyLang);
       border-radius: 12px;
       overflow-y: auto;
       padding: 8px;
-      color: var(--lf-text);
     }
     .tree-head {
       display: flex; align-items: center; gap: 8px;
@@ -151,7 +167,6 @@ hljs.registerLanguage('python', pyLang);
       display: flex; align-items: center; gap: 8px;
       padding: 12px 16px; border-bottom: 1px solid var(--lf-border);
       background: rgba(0,0,0,0.35);
-      color: var(--lf-text);
     }
     .file-head .path { font-family: 'SF Mono', monospace; font-size: 0.9rem; }
     .file-head .meta { margin-left: auto; color: var(--lf-muted); font-size: 0.8rem; }
@@ -169,6 +184,7 @@ hljs.registerLanguage('python', pyLang);
       tab-size: 4;
     }
     .empty { padding: 60px; text-align: center; color: var(--lf-muted); }
+    .analysis-pad { padding: 16px 0; }
   `],
 })
 export class RepoDetailComponent implements OnInit {
