@@ -9,19 +9,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Calls an OpenAI-compatible /chat/completions endpoint for planning.
+ * Calls an OpenAI-compatible /chat/completions endpoint. Used both by the
+ * planning service (JSON mode) and the migration agents (plain text output).
  *
  * Configured via env:
- *   - PLANNING_BASE_URL  (e.g. http://localhost:11434/v1  or  https://generativelanguage.googleapis.com/v1beta/openai)
- *   - PLANNING_API_KEY   (dummy for Ollama, real key for Gemini)
- *   - PLANNING_MODEL     (e.g. llama3.2  or  gemini-2.5-flash)
- *
- * Uses JSON mode (response_format=json_object) so the model always returns parseable JSON.
- * Timeout is long because planning prompts include the whole codebase and can take 30-60s.
+ *   - PLANNING_BASE_URL  (e.g. http://localhost:11434/v1  or  https://api.openai.com/v1)
+ *   - PLANNING_API_KEY   (dummy for Ollama, real key for OpenAI/Gemini)
+ *   - PLANNING_MODEL     (e.g. llama3.2  or  gpt-4o-mini)
  */
 @Service
 public class LlmProvider {
@@ -42,7 +41,7 @@ public class LlmProvider {
 
         SimpleClientHttpRequestFactory rf = new SimpleClientHttpRequestFactory();
         rf.setConnectTimeout((int) Duration.ofSeconds(15).toMillis());
-        rf.setReadTimeout((int) Duration.ofSeconds(120).toMillis());
+        rf.setReadTimeout((int) Duration.ofSeconds(180).toMillis());
 
         this.http = RestClient.builder()
                 .baseUrl(baseUrl)
@@ -53,16 +52,28 @@ public class LlmProvider {
         log.info("LlmProvider: base={} model={}", baseUrl, model);
     }
 
+    /** JSON-mode completion. Used by the planning service. */
     public LlmResponse completeJson(String systemPrompt, String userPrompt) {
-        Map<String, Object> body = Map.of(
-                "model", model,
-                "messages", List.of(
-                        Map.of("role", "system", "content", systemPrompt),
-                        Map.of("role", "user", "content", userPrompt)
-                ),
-                "response_format", Map.of("type", "json_object"),
-                "temperature", 0.2
-        );
+        return call(systemPrompt, userPrompt, true);
+    }
+
+    /** Plain text completion. Used by the migration agents (they produce source code). */
+    public LlmResponse completeText(String systemPrompt, String userPrompt) {
+        return call(systemPrompt, userPrompt, false);
+    }
+
+    @SuppressWarnings("unchecked")
+    private LlmResponse call(String systemPrompt, String userPrompt, boolean jsonMode) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("model", model);
+        body.put("messages", List.of(
+                Map.of("role", "system", "content", systemPrompt),
+                Map.of("role", "user", "content", userPrompt)
+        ));
+        body.put("temperature", 0.2);
+        if (jsonMode) {
+            body.put("response_format", Map.of("type", "json_object"));
+        }
 
         Map<String, Object> resp;
         try {
@@ -73,16 +84,14 @@ public class LlmProvider {
                     .body(Map.class);
         } catch (Exception e) {
             log.error("LLM call failed: {}", e.getMessage());
-            throw new RuntimeException("Planning provider unavailable: " + e.getMessage(), e);
+            throw new RuntimeException("LLM provider unavailable: " + e.getMessage(), e);
         }
         if (resp == null || !resp.containsKey("choices")) {
             throw new RuntimeException("Malformed LLM response");
         }
 
-        @SuppressWarnings("unchecked")
         List<Map<String, Object>> choices = (List<Map<String, Object>>) resp.get("choices");
         if (choices.isEmpty()) throw new RuntimeException("LLM returned no choices");
-        @SuppressWarnings("unchecked")
         Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
         String content = (String) message.get("content");
 
