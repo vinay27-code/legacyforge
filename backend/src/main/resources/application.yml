@@ -71,6 +71,10 @@ app:
     base-url: ${EMBEDDING_BASE_URL:http://localhost:11434/v1}
     api-key: ${EMBEDDING_API_KEY:ollama}
     model: ${EMBEDDING_MODEL:nomic-embed-text}
+  planning:
+    base-url: ${PLANNING_BASE_URL:http://localhost:11434/v1}
+    api-key: ${PLANNING_API_KEY:ollama}
+    model: ${PLANNING_MODEL:llama3.2}
 
 logging:
   level:
@@ -95,3 +99,7 @@ app:
     base-url: https://api.openai.com/v1
     api-key: ${EMBEDDING_API_KEY:missing}
     model: text-embedding-3-small
+  planning:
+    base-url: https://generativelanguage.googleapis.com/v1beta/openai
+    api-key: ${PLANNING_API_KEY:missing}
+    model: gemini-2.5-flash

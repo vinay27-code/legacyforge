@@ -25,6 +25,7 @@ import { FileContent, FileTreeNode, RepoSummary } from './repo.models';
 import { FileTreeComponent } from './file-tree.component';
 import { AnalysisTabComponent } from '../analysis/analysis-tab.component';
 import { SearchTabComponent } from '../search/search-tab.component';
+import { PlanningTabComponent } from '../planning/planning-tab.component';
 
 hljs.registerLanguage('java', javaLang);
 hljs.registerLanguage('xml', xmlLang);
@@ -56,6 +57,7 @@ hljs.registerLanguage('python', pyLang);
     FileTreeComponent,
     AnalysisTabComponent,
     SearchTabComponent,
+    PlanningTabComponent,
   ],
   template: `
     @if (loading()) {
@@ -127,6 +129,12 @@ hljs.registerLanguage('python', pyLang);
           <mat-tab label="Semantic search">
             <div class="tab-pad">
               <app-search-tab [repoId]="repo()!.id"></app-search-tab>
+            </div>
+          </mat-tab>
+
+          <mat-tab label="Migration plan">
+            <div class="tab-pad">
+              <app-planning-tab [repoId]="repo()!.id"></app-planning-tab>
             </div>
           </mat-tab>
         </mat-tab-group>
