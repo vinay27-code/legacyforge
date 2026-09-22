@@ -8,7 +8,9 @@ import com.legacyforge.agents.entity.MigrationDependency;
 import com.legacyforge.agents.repo.MigrationDependencyRepository;
 import com.legacyforge.ingestion.entity.Repo;
 import com.legacyforge.planning.entity.MigrationPlan;
+import com.legacyforge.planning.entity.PlanPatch;
 import com.legacyforge.planning.repo.MigrationPlanRepository;
+import com.legacyforge.planning.repo.PlanPatchRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -17,15 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * Feedback loop: takes the current plan + the list of broken class references
- * from the dependency graph and asks the LLM to propose a plan PATCH —
- * additional file entries to cover the missing classes, either slotted into
- * existing phases or grouped into a new gap-fill phase.
- *
- * The LLM's proposed additions are merged into the plan JSON in place, and
- * a plan_patches audit row records what happened.
- */
 @Service
 public class PlanPatchService {
 
@@ -34,15 +27,18 @@ public class PlanPatchService {
     private final LlmProvider llm;
     private final MigrationPlanRepository plans;
     private final MigrationDependencyRepository deps;
+    private final PlanPatchRepository patches;
     private final ObjectMapper json;
 
     public PlanPatchService(LlmProvider llm,
                             MigrationPlanRepository plans,
                             MigrationDependencyRepository deps,
+                            PlanPatchRepository patches,
                             ObjectMapper json) {
         this.llm = llm;
         this.plans = plans;
         this.deps = deps;
+        this.patches = patches;
         this.json = json;
     }
 
@@ -51,12 +47,11 @@ public class PlanPatchService {
         MigrationPlan plan = plans.findByRepoId(repo.getId())
                 .orElseThrow(() -> new IllegalStateException("No plan yet — generate one first."));
 
-        // Distinct broken classes only. Order by frequency so the most-referenced ones lead the prompt.
         Map<String, Long> brokenByFrequency = deps.findByRepoId(repo.getId()).stream()
                 .filter(d -> !d.isResolved())
                 .map(MigrationDependency::getToClassName)
                 .filter(name -> name != null && !name.isBlank())
-                .filter(name -> !name.contains("java.lang.")) // safety net; analyzer already skips these
+                .filter(name -> !name.contains("java.lang."))
                 .collect(Collectors.groupingBy(n -> n, Collectors.counting()));
 
         if (brokenByFrequency.isEmpty()) {
@@ -90,8 +85,6 @@ public class PlanPatchService {
             throw new RuntimeException("Patch LLM returned invalid JSON: " + e.getMessage(), e);
         }
 
-        // Merge: any phaseNumber that already exists gets its files appended;
-        // new phaseNumbers are added as new phase entries at the end.
         int filesAdded = 0;
         int phasesAdded = 0;
 
@@ -110,14 +103,12 @@ public class PlanPatchService {
             if (patchFiles == null || patchFiles.isEmpty()) continue;
 
             if (patchNum > 0 && byNumber.containsKey(patchNum)) {
-                // Slot the new files into an existing phase
                 ArrayNode target = (ArrayNode) byNumber.get(patchNum).path("files");
                 for (JsonNode f : patchFiles) {
                     target.add(f);
                     filesAdded++;
                 }
             } else {
-                // New phase — assign a fresh phaseNumber past the current max
                 maxPhaseNumber++;
                 ObjectNode newPhase = json.createObjectNode();
                 newPhase.put("phaseNumber", maxPhaseNumber);
@@ -136,17 +127,24 @@ public class PlanPatchService {
             }
         }
 
-        // Persist the updated plan
         try {
-            try {
             plan.setPlanJson(json.writeValueAsString(planNode));
         } catch (Exception e) {
             throw new RuntimeException("Failed to serialize patched plan: " + e.getMessage(), e);
         }
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to serialize patched plan: " + e.getMessage(), e);
-        }
         plans.saveAndFlush(plan);
+
+        // Week 12 fix: audit the patch so the Dashboard's plan_patches counter is real.
+        PlanPatch audit = new PlanPatch();
+        audit.setPlanId(plan.getId());
+        audit.setRepoId(repo.getId());
+        audit.setBrokenClassNames(String.join(",", broken));
+        audit.setFilesAdded(filesAdded);
+        audit.setPhasesAdded(phasesAdded);
+        audit.setProvider(llm.describe());
+        audit.setPromptTokens(resp.promptTokens());
+        audit.setOutputTokens(resp.outputTokens());
+        patches.saveAndFlush(audit);
 
         return new PatchResult(broken.size(), filesAdded, phasesAdded,
                 resp.promptTokens() != null ? resp.promptTokens() : 0,
