@@ -15,7 +15,7 @@ import { ArtifactDetail, ArtifactSummary, RunSummary } from './agents.models';
 @Component({
   selector: 'app-artifact-diff-dialog',
   standalone: true,
-  imports: [CommonModule, MatDialogModule, MatIconModule, MatButtonModule, MatChipsModule],
+  imports: [CommonModule, MatDialogModule, MatIconModule, MatButtonModule, MatChipsModule, MatTooltipModule],
   template: `
     <div class="dlg">
       <div class="dlg-head">
