@@ -314,7 +314,18 @@ export class ArtifactDiffDialogComponent {
                 <option value="high">HIGH risk only</option>
               </select>
             </label>
-            <button mat-stroked-button (click)="run()" [disabled]="running()">
+            @if (summary()!.brokenEdges > 0) {
+              <button mat-flat-button color="accent" (click)="patchPlan()" [disabled]="patching() || running()"
+                      matTooltip="Ask the LLM to add plan entries covering the broken references, then rerun the agents">
+                @if (patching()) {
+                  <mat-spinner diameter="18"></mat-spinner>
+                  Patching...
+                } @else {
+                  <mat-icon>healing</mat-icon> Patch plan ({{ summary()!.brokenEdges }})
+                }
+              </button>
+            }
+            <button mat-stroked-button (click)="run()" [disabled]="running() || patching()">
               @if (running()) {
                 <mat-spinner diameter="18"></mat-spinner>
               } @else {
@@ -323,6 +334,17 @@ export class ArtifactDiffDialogComponent {
             </button>
           </div>
         </div>
+
+        @if (patchMessage()) {
+          <div class="patch-toast">
+            <mat-icon>auto_fix_high</mat-icon>
+            <span>{{ patchMessage() }}</span>
+            <button mat-stroked-button (click)="run()" [disabled]="running()">
+              <mat-icon>bolt</mat-icon> Rerun agents to fill new slots
+            </button>
+            <button mat-icon-button (click)="patchMessage.set(null)"><mat-icon>close</mat-icon></button>
+          </div>
+        }
 
         @for (phase of phases(); track phase.number) {
           <mat-card class="phase-card">
@@ -416,6 +438,17 @@ export class ArtifactDiffDialogComponent {
     .v-valid mat-icon { color: #2ecc71; }
     .v-invalid mat-icon { color: #ff6b5c; }
 
+    .patch-toast {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px; margin-bottom: 12px;
+      background: rgba(178,142,255,0.10);
+      border: 1px solid rgba(178,142,255,0.35);
+      border-radius: 8px;
+      color: var(--lf-text);
+    }
+    .patch-toast mat-icon { color: #b28eff; }
+    .patch-toast span { flex: 1; }
+
     .phase-card { background: var(--lf-bg-elev); border: 1px solid var(--lf-border); margin-bottom: 12px; }
     .phase-card mat-card-title {
       display: flex; align-items: center;
@@ -485,6 +518,8 @@ export class AgentsTabComponent implements OnChanges {
 
   loading = signal(true);
   running = signal(false);
+  patching = signal(false);
+  patchMessage = signal<string | null>(null);
   summary = signal<RunSummary | null>(null);
   errorMessage = signal<string | null>(null);
   filter = 'all';
@@ -504,11 +539,27 @@ export class AgentsTabComponent implements OnChanges {
   run(): void {
     this.running.set(true);
     this.errorMessage.set(null);
+    this.patchMessage.set(null);
     this.service.run(this.repoId).subscribe({
       next: (s) => { this.summary.set(s); this.running.set(false); },
       error: (err) => {
         this.errorMessage.set(err?.error?.message ?? 'Agent run failed');
         this.running.set(false);
+      },
+    });
+  }
+
+  patchPlan(): void {
+    this.patching.set(true);
+    this.errorMessage.set(null);
+    this.service.patchPlan(this.repoId).subscribe({
+      next: (r) => {
+        this.patching.set(false);
+        this.patchMessage.set(r.summary);
+      },
+      error: (err) => {
+        this.patching.set(false);
+        this.errorMessage.set(err?.error?.message ?? 'Plan patch failed');
       },
     });
   }

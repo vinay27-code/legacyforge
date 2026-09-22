@@ -24,15 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 
 /**
- * Walks every generated Java artifact with JavaParser and records the classes
- * it references (imports, fields, method params, constructor calls). Each
- * reference becomes a row in migration_dependencies; if the referenced class
- * matches another artifact's declared FQN, the row is marked resolved and
- * carries the target artifact id.
- *
- * Unresolved edges are the interesting signal: they either point at classes
- * the plan missed, classes whose migration failed, or classes the LLM
- * hallucinated a name for. Either way they're structural coherence gaps.
+ * Extracts class references from every generated Java artifact via JavaParser
+ * and builds a dependency graph. Week 10: java.lang.* auto-imports are now
+ * treated as implicit (so String, Long, etc. no longer appear as "broken").
  */
 @Service
 public class DependencyAnalyzer {
@@ -52,7 +46,6 @@ public class DependencyAnalyzer {
         this.deps = deps;
     }
 
-    /** Rebuild the dependency graph for one repo. Idempotent — deletes existing edges first. */
     @Transactional
     public int rebuildFor(UUID repoId) {
         deps.deleteByRepoId(repoId);
@@ -60,7 +53,6 @@ public class DependencyAnalyzer {
 
         List<MigrationArtifact> all = artifacts.findByRepoIdOrderByPhaseNumberAscFilePathAsc(repoId);
 
-        // Extract declared FQN for every VALID Java artifact, and build FQN → artifactId lookup
         Map<String, UUID> fqnToId = new HashMap<>();
         for (MigrationArtifact a : all) {
             if (!isJava(a) || a.getGeneratedCode() == null) continue;
@@ -112,49 +104,38 @@ public class DependencyAnalyzer {
 
         String ownPkg = cu.getPackageDeclaration().map(PackageDeclaration::getNameAsString).orElse("");
 
-        // Build import table: simpleName → fullyQualifiedName
         Map<String, String> importMap = new HashMap<>();
         for (ImportDeclaration imp : cu.getImports()) {
+            if (imp.isAsterisk()) continue;
             String fq = imp.getNameAsString();
-            if (imp.isAsterisk()) continue; // skip star imports
             String simple = fq.substring(fq.lastIndexOf('.') + 1);
             importMap.put(simple, fq);
         }
 
         List<Edge> found = new ArrayList<>();
 
-        // 1. IMPORT edges: every non-JDK, non-external import
         for (ImportDeclaration imp : cu.getImports()) {
             if (imp.isAsterisk()) continue;
             String fq = imp.getNameAsString();
             if (shouldIgnore(fq)) continue;
             found.add(new Edge(fq, MigrationDependency.EdgeType.IMPORT));
         }
-
-        // 2. FIELD types
         for (FieldDeclaration f : cu.findAll(FieldDeclaration.class)) {
             for (com.github.javaparser.ast.body.VariableDeclarator v : f.getVariables()) {
                 collectType(v.getType(), importMap, ownPkg, MigrationDependency.EdgeType.FIELD, found);
             }
         }
-
-        // 3. METHOD_PARAM types
         for (MethodDeclaration m : cu.findAll(MethodDeclaration.class)) {
             for (Parameter p : m.getParameters()) {
                 collectType(p.getType(), importMap, ownPkg, MigrationDependency.EdgeType.METHOD_PARAM, found);
             }
         }
-
-        // 4. INSTANTIATION expressions (new Foo(...))
         for (ObjectCreationExpr expr : cu.findAll(ObjectCreationExpr.class)) {
             collectType(expr.getType(), importMap, ownPkg, MigrationDependency.EdgeType.INSTANTIATION, found);
         }
 
-        // Deduplicate edges by (toClassName, type)
         Map<String, Edge> unique = new LinkedHashMap<>();
-        for (Edge e : found) {
-            unique.putIfAbsent(e.className + "|" + e.type, e);
-        }
+        for (Edge e : found) unique.putIfAbsent(e.className + "|" + e.type, e);
 
         int saved = 0;
         for (Edge e : unique.values()) {
@@ -185,7 +166,6 @@ public class DependencyAnalyzer {
         String fq = resolveFqn(simple, importMap, ownPkg);
         if (fq == null || shouldIgnore(fq)) return;
         out.add(new Edge(fq, edgeType));
-        // Recurse into generic type arguments (e.g. List<Foo>, Map<String, Bar>)
         cit.getTypeArguments().ifPresent(args -> {
             for (com.github.javaparser.ast.type.Type arg : args) {
                 collectType(arg, importMap, ownPkg, edgeType, out);
@@ -193,17 +173,35 @@ public class DependencyAnalyzer {
         });
     }
 
+    /**
+     * java.lang.* is auto-imported so a bare `String` in source refers to
+     * `java.lang.String`. Keep this list small and current — everything
+     * outside it that isn't explicitly imported gets treated as a
+     * same-package reference.
+     */
+    private static final Set<String> JAVA_LANG_IMPLICITS = Set.of(
+            "String", "Object", "Class", "Boolean", "Byte", "Character", "Double", "Float",
+            "Integer", "Long", "Short", "Number", "Void",
+            "Throwable", "Exception", "RuntimeException", "Error", "Iterable", "Comparable",
+            "Runnable", "Thread", "StringBuilder", "StringBuffer",
+            "System", "Math", "Enum", "Record",
+            "IllegalArgumentException", "IllegalStateException", "NullPointerException",
+            "UnsupportedOperationException", "ClassCastException", "IndexOutOfBoundsException",
+            "NumberFormatException", "ArithmeticException", "SecurityException",
+            "AutoCloseable", "CharSequence", "Cloneable", "Deprecated", "Override",
+            "SuppressWarnings", "FunctionalInterface", "SafeVarargs"
+    );
+
     private String resolveFqn(String simpleOrDotted, Map<String, String> importMap, String ownPkg) {
         if (simpleOrDotted.contains(".")) return simpleOrDotted;
         if (importMap.containsKey(simpleOrDotted)) return importMap.get(simpleOrDotted);
-        // Assume same-package if it looks like a project class (starts uppercase)
+        if (JAVA_LANG_IMPLICITS.contains(simpleOrDotted)) return "java.lang." + simpleOrDotted;
         if (Character.isUpperCase(simpleOrDotted.charAt(0)) && !ownPkg.isEmpty()) {
             return ownPkg + "." + simpleOrDotted;
         }
         return null;
     }
 
-    /** Ignore JDK, Spring, Jakarta, Lombok, JUnit, Mockito, etc — anything not the project. */
     private static final List<String> IGNORE_PREFIXES = List.of(
             "java.", "javax.", "jakarta.",
             "org.springframework.", "org.springframework",
@@ -216,7 +214,7 @@ public class DependencyAnalyzer {
 
     private boolean shouldIgnore(String fqn) {
         for (String p : IGNORE_PREFIXES) if (fqn.startsWith(p)) return true;
-        return !fqn.contains("."); // ignore unresolved single names
+        return !fqn.contains(".");
     }
 
     private boolean isJava(MigrationArtifact a) {
