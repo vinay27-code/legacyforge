@@ -1,0 +1,315 @@
+/* LegacyForge design system — Week 13 polish pass.
+ *
+ * Palette rationale: "forge" name → warm fire accent (amber-orange).
+ * AI product → electric purple accent for AI-generated content.
+ * Dev tool → deep navy background, not pure black, tight type.
+ * Enterprise credible → sober status colors, disciplined spacing.
+ */
+
+@use '@angular/material' as mat;
+@include mat.core();
+
+/* --------- 1. Fonts --------- */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&display=swap');
+
+/* --------- 2. Design tokens --------- */
+
+:root {
+  /* Surface colors — warm navy series */
+  --lf-bg:            #0a0e1a;
+  --lf-bg-elev:       #131a2b;
+  --lf-bg-elev-2:     #1c2540;
+  --lf-bg-inset:      #060912;
+
+  /* Borders */
+  --lf-border:         #232c47;
+  --lf-border-strong:  #3d4a75;
+
+  /* Text */
+  --lf-text:           #eef1fa;
+  --lf-text-muted:     #8892b0;
+  --lf-text-dim:       #5a6383;
+
+  /* Brand — forge fire */
+  --lf-primary:        #ff7a3a;
+  --lf-primary-hover:  #ff8f56;
+  --lf-primary-glow:   rgba(255, 122, 58, 0.22);
+
+  /* Brand — AI accent */
+  --lf-accent:         #a78bfa;
+  --lf-accent-hover:   #b89bff;
+  --lf-accent-glow:    rgba(167, 139, 250, 0.18);
+
+  /* Status */
+  --lf-success:        #10b981;
+  --lf-success-glow:   rgba(16, 185, 129, 0.15);
+  --lf-warning:        #f59e0b;
+  --lf-warning-glow:   rgba(245, 158, 11, 0.15);
+  --lf-danger:         #ef4444;
+  --lf-danger-glow:    rgba(239, 68, 68, 0.15);
+  --lf-info:           #3b82f6;
+  --lf-info-glow:      rgba(59, 130, 246, 0.15);
+
+  /* Gradients — for hero moments only */
+  --lf-gradient-primary: linear-gradient(135deg, #ff7a3a 0%, #ff4d8a 100%);
+  --lf-gradient-accent:  linear-gradient(135deg, #a78bfa 0%, #6366f1 100%);
+  --lf-gradient-hero:    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255,122,58,0.18), transparent 60%),
+                         radial-gradient(ellipse 60% 40% at 80% 20%, rgba(167,139,250,0.12), transparent 60%);
+  --lf-gradient-cost:    linear-gradient(135deg, #10b981 0%, #34d399 100%);
+
+  /* Typography */
+  --lf-font-sans:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --lf-font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Monaco, monospace;
+  --lf-font-display: 'Bricolage Grotesque', var(--lf-font-sans);
+
+  /* Radii */
+  --lf-radius-sm: 6px;
+  --lf-radius-md: 10px;
+  --lf-radius-lg: 14px;
+  --lf-radius-xl: 20px;
+  --lf-radius-2xl: 28px;
+
+  /* Elevation */
+  --lf-shadow-sm:    0 1px 2px rgba(0,0,0,0.35);
+  --lf-shadow-md:    0 4px 12px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.25);
+  --lf-shadow-lg:    0 12px 40px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.35);
+  --lf-shadow-glow-primary: 0 0 32px var(--lf-primary-glow);
+  --lf-shadow-glow-accent:  0 0 32px var(--lf-accent-glow);
+  --lf-ring-primary: 0 0 0 3px rgba(255, 122, 58, 0.35);
+
+  /* Motion */
+  --lf-ease:      cubic-bezier(0.4, 0, 0.2, 1);
+  --lf-ease-out:  cubic-bezier(0.16, 1, 0.3, 1);
+  --lf-t-fast:    0.12s var(--lf-ease);
+  --lf-t-med:     0.24s var(--lf-ease);
+  --lf-t-slow:    0.4s var(--lf-ease-out);
+}
+
+/* --------- 3. Angular Material theme override --------- */
+
+$lf-primary: (
+  50:  #fff3ec, 100: #ffddc7, 200: #ffc39d, 300: #ffa972,
+  400: #ff9752, 500: #ff7a3a, 600: #f36c30, 700: #e35c26,
+  800: #d24d1d, 900: #b8390d,
+  contrast: (
+    50: rgba(0,0,0,0.87), 100: rgba(0,0,0,0.87), 200: rgba(0,0,0,0.87),
+    300: rgba(0,0,0,0.87), 400: white, 500: white, 600: white,
+    700: white, 800: white, 900: white
+  )
+);
+$lf-accent: (
+  50:  #f4efff, 100: #e0d5ff, 200: #ccb8ff, 300: #b89bff,
+  400: #a78bfa, 500: #8b6ff2, 600: #7454e0, 700: #5a3fc9,
+  800: #4131a8, 900: #2b2078,
+  contrast: (
+    50: rgba(0,0,0,0.87), 100: rgba(0,0,0,0.87), 200: rgba(0,0,0,0.87),
+    300: rgba(0,0,0,0.87), 400: white, 500: white, 600: white,
+    700: white, 800: white, 900: white
+  )
+);
+
+$lf-theme: mat.m2-define-dark-theme((
+  color: (
+    primary: mat.m2-define-palette($lf-primary, 500),
+    accent:  mat.m2-define-palette($lf-accent, 400),
+    warn:    mat.m2-define-palette(mat.$m2-red-palette, 500)
+  ),
+  typography: mat.m2-define-typography-config(
+    $font-family: "'Inter', -apple-system, sans-serif"
+  ),
+  density: 0
+));
+@include mat.all-component-themes($lf-theme);
+
+/* --------- 4. Base --------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0;
+  background: var(--lf-bg);
+  color: var(--lf-text);
+  font-family: var(--lf-font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Ambient background gradient — subtle, only shows through backdrop */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: var(--lf-gradient-hero);
+  pointer-events: none;
+  z-index: 0;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--lf-font-display);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+  margin: 0;
+}
+
+h1 { font-size: 2.5rem; }
+h2 { font-size: 1.75rem; }
+h3 { font-size: 1.25rem; }
+
+a { color: var(--lf-accent); text-decoration: none; transition: color var(--lf-t-fast); }
+a:hover { color: var(--lf-accent-hover); }
+
+code, pre { font-family: var(--lf-font-mono); font-size: 0.85em; }
+
+/* --------- 5. Utility classes --------- */
+
+.lf-gradient-text {
+  background: var(--lf-gradient-primary);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+
+.lf-glass {
+  background: rgba(19, 26, 43, 0.7);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.lf-card {
+  background: var(--lf-bg-elev);
+  border: 1px solid var(--lf-border);
+  border-radius: var(--lf-radius-lg);
+  transition: border-color var(--lf-t-fast), transform var(--lf-t-fast), box-shadow var(--lf-t-med);
+}
+.lf-card:hover {
+  border-color: var(--lf-border-strong);
+}
+
+.lf-card-interactive {
+  cursor: pointer;
+}
+.lf-card-interactive:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--lf-shadow-md);
+}
+
+/* --------- 6. Angular Material overrides — subtle but important --------- */
+
+.mat-mdc-card {
+  background: var(--lf-bg-elev) !important;
+  color: var(--lf-text) !important;
+  border: 1px solid var(--lf-border);
+  border-radius: var(--lf-radius-lg) !important;
+  box-shadow: none !important;
+}
+
+.mat-mdc-tab-header {
+  border-bottom: 1px solid var(--lf-border);
+}
+
+.mat-mdc-tab .mdc-tab__text-label {
+  color: var(--lf-text-muted) !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.01em;
+}
+.mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
+  color: var(--lf-primary) !important;
+}
+.mdc-tab-indicator__content--underline {
+  border-color: var(--lf-primary) !important;
+  border-width: 2px !important;
+}
+
+.mat-mdc-chip {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid var(--lf-border) !important;
+  color: var(--lf-text) !important;
+  font-weight: 500 !important;
+  border-radius: 999px !important;
+  transition: all var(--lf-t-fast);
+}
+.mat-mdc-chip:hover {
+  border-color: var(--lf-border-strong) !important;
+}
+
+.mat-mdc-raised-button.mat-primary,
+.mat-mdc-unelevated-button.mat-primary {
+  background: var(--lf-gradient-primary) !important;
+  color: white !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em;
+  box-shadow: 0 4px 14px var(--lf-primary-glow) !important;
+  transition: transform var(--lf-t-fast), box-shadow var(--lf-t-med) !important;
+}
+.mat-mdc-raised-button.mat-primary:hover:not([disabled]),
+.mat-mdc-unelevated-button.mat-primary:hover:not([disabled]) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px var(--lf-primary-glow), var(--lf-shadow-md) !important;
+}
+
+.mat-mdc-stroked-button {
+  border-color: var(--lf-border-strong) !important;
+  color: var(--lf-text) !important;
+  transition: all var(--lf-t-fast);
+}
+.mat-mdc-stroked-button:hover:not([disabled]) {
+  border-color: var(--lf-primary) !important;
+  color: var(--lf-primary) !important;
+  background: rgba(255, 122, 58, 0.06) !important;
+}
+
+.mat-mdc-icon-button:hover { background: rgba(255,255,255,0.06) !important; }
+
+/* Dialog / modal polish */
+.cdk-overlay-dark-backdrop { background: rgba(6, 9, 18, 0.75) !important; backdrop-filter: blur(4px); }
+.mat-mdc-dialog-container .mdc-dialog__surface {
+  background: var(--lf-bg-elev-2) !important;
+  color: var(--lf-text) !important;
+  border: 1px solid var(--lf-border) !important;
+  border-radius: var(--lf-radius-xl) !important;
+  box-shadow: var(--lf-shadow-lg) !important;
+}
+
+/* Progress spinner */
+.mat-mdc-progress-spinner circle,
+.mdc-circular-progress__indeterminate-circle-graphic { stroke: var(--lf-primary) !important; }
+
+/* Form fields */
+.mat-mdc-form-field { color: var(--lf-text) !important; }
+.mat-mdc-text-field-wrapper { background: var(--lf-bg-inset) !important; }
+.mdc-notched-outline__leading,
+.mdc-notched-outline__notch,
+.mdc-notched-outline__trailing {
+  border-color: var(--lf-border) !important;
+}
+.mdc-text-field--focused .mdc-notched-outline__leading,
+.mdc-text-field--focused .mdc-notched-outline__notch,
+.mdc-text-field--focused .mdc-notched-outline__trailing {
+  border-color: var(--lf-primary) !important;
+  border-width: 2px !important;
+}
+
+/* Scrollbars — subtle, but present */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--lf-border); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: var(--lf-border-strong); }
+
+/* --------- 7. Selection --------- */
+::selection { background: var(--lf-primary-glow); color: white; }
+
+/* --------- 8. Focus ring — accessible + on-brand --------- */
+:focus-visible { outline: 2px solid var(--lf-primary); outline-offset: 2px; border-radius: 4px; }
+
+/* --------- 9. Legacy variable aliases (backwards compat with your existing components) --------- */
+:root {
+  --lf-muted: var(--lf-text-muted);
+}

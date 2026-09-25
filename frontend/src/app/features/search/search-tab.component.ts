@@ -133,7 +133,7 @@ import { IndexStatus, SearchHit } from './search.models';
     .wrap { max-width: 1100px; margin: 0 auto; }
     .center { display: grid; place-items: center; padding: 60px; }
     .empty { max-width: 560px; margin: 40px auto; text-align: center; padding: 24px; }
-    .empty mat-icon { font-size: 48px; width: 48px; height: 48px; color: var(--lf-accent); margin-bottom: 8px; }
+    .empty > mat-card-content > mat-icon { font-size: 48px; width: 48px; height: 48px; color: var(--lf-accent); margin-bottom: 8px; }
     .empty h3 { margin: 4px 0 8px; }
     .empty p { color: var(--lf-muted); margin: 0 0 20px; }
     .error { color: #ff8080; margin: 12px 0 0; }
