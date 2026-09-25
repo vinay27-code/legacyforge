@@ -34,6 +34,21 @@ public class MigrationAgentService {
     private static final int MAX_ORIGINAL_CHARS = 12000;
     private static final int MAX_RETRIES = 2;
 
+    /**
+     * Extensions we never send to the LLM. Binaries, scripts, media, archives —
+     * anything that either isn't source or would just waste tokens.
+     */
+    private static final Set<String> SKIP_EXTENSIONS = Set.of(
+            ".cmd", ".bat", ".exe", ".dll", ".so", ".dylib",
+            ".jar", ".war", ".ear", ".class",
+            ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".bmp", ".webp",
+            ".zip", ".tar", ".gz", ".tgz", ".rar", ".7z", ".bz2",
+            ".woff", ".woff2", ".ttf", ".otf", ".eot",
+            ".mp3", ".mp4", ".wav", ".ogg", ".mov", ".webm", ".avi",
+            ".pdf", ".xlsx", ".docx", ".pptx",
+            ".lock", ".sum"
+    );
+
     private final LlmProvider llm;
     private final MigrationPlanRepository plans;
     private final MigrationArtifactRepository artifacts;
@@ -77,6 +92,7 @@ public class MigrationAgentService {
         artifacts.deleteByRepoId(repo.getId());
         artifacts.flush();
 
+        int skippedBinary = 0, skippedNoContent = 0;
         List<MigrationArtifact> pending = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (JsonNode phase : root.path("phases")) {
@@ -85,7 +101,16 @@ public class MigrationAgentService {
             for (JsonNode file : phase.path("files")) {
                 String path = file.path("path").asText();
                 if (!seen.add(phaseNumber + "|" + path)) continue;
+
+                // Skip binary / non-source files entirely — no artifact created, keeps the UI clean.
+                if (isBinaryExtension(path)) { skippedBinary++; continue; }
+
                 RepoFile source = byPath.get(path);
+                String content = source != null ? source.getContent() : null;
+
+                // Skip files with no source content (over ingest size cap, or binary-flagged at ingest).
+                if (content == null || content.isBlank()) { skippedNoContent++; continue; }
+
                 MigrationArtifact a = new MigrationArtifact();
                 a.setPlanId(plan.getId());
                 a.setRepoId(repo.getId());
@@ -94,11 +119,13 @@ public class MigrationAgentService {
                 a.setPhaseTitle(phaseTitle);
                 a.setRisk(file.path("risk").asText("MEDIUM"));
                 a.setStatus(MigrationArtifact.Status.PENDING);
-                a.setOriginalCode(source != null && source.getContent() != null
-                        ? trim(source.getContent()) : null);
+                a.setOriginalCode(trim(content));
                 pending.add(a);
             }
         }
+        log.info("Agent run for repo {}: {} planned, {} skipped (binary), {} skipped (no content)",
+                repo.getId(), pending.size(), skippedBinary, skippedNoContent);
+
         List<MigrationArtifact> saved = artifacts.saveAll(pending);
         artifacts.flush();
 
@@ -118,7 +145,6 @@ public class MigrationAgentService {
             try { pool.awaitTermination(30, TimeUnit.SECONDS); } catch (InterruptedException ignored) {}
         }
 
-        // After all agents finish (successes + derived siblings), rebuild dep graph.
         try {
             dependencyAnalyzer.rebuildFor(repo.getId());
         } catch (Exception e) {
@@ -134,10 +160,6 @@ public class MigrationAgentService {
         artifacts.saveAndFlush(a);
 
         try {
-            if (a.getOriginalCode() == null || a.getOriginalCode().isBlank()) {
-                throw new IllegalStateException("No source content available for " + a.getFilePath());
-            }
-
             String userPrompt = buildUserPrompt(a, phase, notes, reason);
             LlmProvider.LlmResponse resp = llm.completeText(SYSTEM_PROMPT, userPrompt);
             String content = stripFences(resp.content());
@@ -147,11 +169,9 @@ public class MigrationAgentService {
             int totalOut = resp.outputTokens() != null ? resp.outputTokens() : 0;
 
             if (splits.isEmpty()) {
-                // No TARGET header — treat entire content as a single unit with no target
                 splits = List.of(new Split(null, content));
             }
 
-            // Primary split lives on the original artifact.
             Split primary = splits.get(0);
             String generated = primary.code;
             String targetPath = primary.targetPath;
@@ -171,7 +191,6 @@ public class MigrationAgentService {
                 totalIn += retryResp.promptTokens() != null ? retryResp.promptTokens() : 0;
                 totalOut += retryResp.outputTokens() != null ? retryResp.outputTokens() : 0;
                 validation = validator.validate(targetPath, generated);
-                // Also refresh splits so any additional TARGETs in the retry replace the previous set
                 splits = retrySplits;
             }
 
@@ -187,7 +206,6 @@ public class MigrationAgentService {
             a.setCompletedAt(Instant.now());
             artifacts.saveAndFlush(a);
 
-            // Additional splits become sibling artifacts under the same phase, parented to primary.
             for (int i = 1; i < splits.size(); i++) {
                 Split s = splits.get(i);
                 MigrationArtifact child = new MigrationArtifact();
@@ -201,7 +219,7 @@ public class MigrationAgentService {
                 child.setRisk(a.getRisk());
                 child.setStatus(MigrationArtifact.Status.SUCCESS);
                 child.setGeneratedCode(s.code);
-                child.setOriginalCode(null); // no separate legacy source; it's a derivative of the primary
+                child.setOriginalCode(null);
                 ValidationService.Result cv = validator.validate(s.targetPath, s.code);
                 child.setValidationStatus(toEntityStatus(cv.status()));
                 child.setValidationErrors(cv.errors().isEmpty() ? null : String.join("\n", cv.errors()));
@@ -215,11 +233,28 @@ public class MigrationAgentService {
                     a.getFilePath(), targetPath, validation.status(), retries, splits.size() - 1);
         } catch (Exception e) {
             a.setStatus(MigrationArtifact.Status.FAILED);
-            a.setErrorMessage(e.getMessage());
+            a.setErrorMessage(cleanError(e));
             a.setCompletedAt(Instant.now());
             artifacts.saveAndFlush(a);
             log.warn("Agent failed on {}: {}", a.getFilePath(), e.getMessage());
         }
+    }
+
+    /** Trim provider-boilerplate error prefixes so the UI shows something short and human. */
+    private static String cleanError(Exception e) {
+        String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+        // Trim overly long provider errors that break the UI layout.
+        if (msg.length() > 240) msg = msg.substring(0, 240) + "…";
+        return msg;
+    }
+
+    // ---- filters -------------------------------------------------------
+
+    private static boolean isBinaryExtension(String path) {
+        String lower = path.toLowerCase();
+        int dot = lower.lastIndexOf('.');
+        if (dot < 0) return false;
+        return SKIP_EXTENSIONS.contains(lower.substring(dot));
     }
 
     // ---- multi-file split ---------------------------------------------
@@ -227,7 +262,6 @@ public class MigrationAgentService {
     private static final Pattern TARGET_HEADER =
             Pattern.compile("^\\s*//\\s*TARGET:\\s*(.+?)\\s*$", Pattern.MULTILINE);
 
-    /** Splits an LLM response into (targetPath, code) pairs, one per TARGET header. */
     private static List<Split> splitByTargetHeaders(String content) {
         List<Split> out = new ArrayList<>();
         Matcher m = TARGET_HEADER.matcher(content);
