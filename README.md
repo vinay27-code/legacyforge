@@ -10,11 +10,11 @@ Everything runs in prod on Google Cloud Run, Supabase, Vercel, and OpenAI. Live 
 
 ## Screenshots
 
-<img width="1512" height="949" alt="Image" src="https://github.com/user-attachments/assets/5c60b5c6-0705-4f91-8cc0-2ffdb782131d" />
+<img width="1512" height="949" alt="Image" src="https://github.com/user-attachments/assets/bce13c7a-857a-44da-85b8-110aaf2a8599" />
 
-<img width="1512" height="949" alt="Image" src="https://github.com/user-attachments/assets/505958f4-4041-42b6-80ec-4ddd20d85a4f" />
+<img width="1512" height="949" alt="Image" src="https://github.com/user-attachments/assets/78203052-2c31-41e7-8e35-c629a3039a36" />
 
-<img width="1512" height="949" alt="Image" src="https://github.com/user-attachments/assets/00c726ba-2526-4c66-9fe9-08d516e090b0" />
+<img width="1512" height="949" alt="Image" src="https://github.com/user-attachments/assets/5832bfe6-a764-4459-b0f2-5cf23569e1c1" />
 
 ---
 
